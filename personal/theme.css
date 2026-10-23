@@ -1,0 +1,40 @@
+/* Original implementation, inspired by BaiBai Book's paper / ink / celadon themes.
+   Tokens are scoped to this extension; no styles or fonts leak into the tavern. */
+.am-memory-ui {
+  --am-solid-surface: #fff; --am-bg: #f6f5f2; --am-surface: #fff; --am-field: #eeede8;
+  --am-ink: #14213d; --am-muted: #526078; --am-line: #dedfdc;
+  --am-accent: #665c50; --am-soft: #ece8e1; --am-on-accent: #fff;
+  --am-danger: #a73535; --am-overlay: #16213966;
+  --am-font: var(--am-host-font, sans-serif);
+  --SmartThemeBodyColor: var(--am-ink); --SmartThemeQuoteColor: var(--am-muted);
+  --SmartThemeBorderColor: var(--am-line); --SmartThemeBlurTintColor: var(--am-surface);
+  --amily2-text-color: var(--am-ink); --amily2-bg-color: var(--am-bg);
+  --amily2-button-color: var(--am-field); --black10a: var(--am-field); --black30a: var(--am-field);
+  color-scheme: light;
+}
+.am-memory-ui[data-memory-theme='night'] {
+  --am-solid-surface: #403f49; --am-bg: #34333b; --am-surface: #403f49; --am-field: #4b4a55;
+  --am-ink: #e2e8e6; --am-muted: #b9c2c0; --am-line: #5b5b66;
+  --am-accent: #92c7c6; --am-soft: #3e5457; --am-on-accent: #20383a;
+  --am-danger: #f1a2a2; --am-overlay: #16151bb3; color-scheme: dark;
+}
+.am-memory-ui[data-memory-theme='green'] {
+  --am-bg: #eef4f3; --am-surface: #fff; --am-field: #e5efec;
+  --am-ink: #203f3c; --am-muted: #4c6763; --am-line: #cedfda;
+  --am-accent: #2d7167; --am-soft: #dceee8; --am-on-accent: #fff;
+}
+/* Snapshot host colors before the scoped compatibility aliases above are applied. */
+.am-memory-ui[data-memory-theme='st'] {
+  --am-solid-surface: var(--am-host-solid-surface, #343b45);
+  --am-bg: var(--am-host-bg, #292d35);
+  --am-surface: var(--am-host-surface, #343b45);
+  --am-field: color-mix(in srgb, var(--am-surface) 92%, var(--am-ink));
+  --am-ink: var(--am-host-ink, #ddd);
+  --am-muted: color-mix(in srgb, var(--am-ink) 78%, var(--am-bg));
+  --am-line: var(--am-host-line, #555);
+  --am-accent: var(--am-host-accent, #8ec7ee);
+  --am-soft: color-mix(in srgb, var(--am-accent) 14%, var(--am-bg));
+  --am-on-accent: var(--am-host-accent-ink, #14213d);
+  --am-overlay: #0009;
+  color-scheme: var(--am-host-color-scheme, dark);
+}

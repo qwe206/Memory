@@ -1,0 +1,64 @@
+/* A quiet workbench: separate tasks, compact text, and optional detail. */
+:is(#amily2_chat_optimiser.am-memory-ui, dialog.am-memory-ui) { --am-text-size: 13px; font-size: var(--am-text-size) !important; }
+:is(#amily2_chat_optimiser.am-memory-ui, dialog.am-memory-ui) :is(p,span,div,strong,small,label,legend,button,summary,dt,dd) {
+  font-family: var(--am-font) !important; font-size: var(--am-text-size) !important; line-height: 1.55 !important;
+}
+:is(#amily2_chat_optimiser.am-memory-ui, dialog.am-memory-ui) :is(input:not([type='checkbox']):not([type='radio']),textarea,select) { font-size: var(--am-text-size) !important; }
+#amily2_chat_optimiser.am-memory-ui :is(h1,h2,h3) { font-family: var(--am-font) !important; line-height: 1.4 !important; }
+#amily2_chat_optimiser.am-memory-ui :is(h2,.am-vector-title) { font-size: calc(var(--am-text-size) + 5px) !important; margin: 0 0 18px; }
+#amily2_chat_optimiser.am-memory-ui .am-app-header h1 { font-size: var(--am-text-size) !important; }
+#amily2_chat_optimiser.am-memory-ui .am-sidebar-head strong { font-size: calc(var(--am-text-size) + 3px) !important; }
+#amily2_chat_optimiser.am-memory-ui :is(small,.notes,.am-section-help,.am-section-help p,.am-profile-meta,.am-nav-group p) { font-size: max(11px,calc(var(--am-text-size) - 1px)) !important; color: var(--am-muted) !important; }
+#amily2_chat_optimiser.am-workspace .am-route-pane { padding: 18px; }
+#amily2_chat_optimiser.am-workspace .am-route-heading { margin-bottom: 16px; }
+#amily2_chat_optimiser.am-workspace .am-setting-card { padding: 16px !important; margin: 0 0 16px !important; background: var(--am-surface) !important; border: 1px solid var(--am-line) !important; border-radius: 10px !important; }
+#amily2_chat_optimiser.am-workspace .am-setting-card > legend { float: left; width: 100%; padding: 0 !important; margin: 0 0 12px; font-size: calc(var(--am-text-size) + 1px) !important; font-weight: 600; }
+#amily2_chat_optimiser.am-workspace .am-setting-card > legend + * { clear: both; }
+#amily2_chat_optimiser.am-workspace .am-settings-fold { background: var(--am-surface); border: 1px solid var(--am-line); border-radius: 10px; margin: 0 0 12px; overflow: hidden; }
+#amily2_chat_optimiser.am-workspace .am-settings-fold > summary { padding: 10px 14px; color: var(--am-ink) !important; font-weight: 600; min-height: 44px; }
+#amily2_chat_optimiser.am-workspace .am-settings-fold[open] > summary { border-bottom: 1px solid var(--am-line); }
+#amily2_chat_optimiser.am-workspace .am-settings-fold > .am-fold-body { padding: 14px !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; }
+#amily2_chat_optimiser.am-workspace .am-fold-body > legend { display: none; }
+#amily2_chat_optimiser.am-workspace .am-section-help { margin: 12px 14px 0; }
+#amily2_chat_optimiser.am-workspace .am-vector-setup { background: var(--am-surface); border: 1px solid var(--am-line); border-radius: 10px; padding: 14px; margin: 0 0 16px; }
+#amily2_chat_optimiser.am-workspace .am-vector-setup p { color: var(--am-muted); margin: 6px 0 12px; }
+#amily2_chat_optimiser.am-workspace .am-sidebar-foot { display: grid; gap: 8px; }
+#amily2_chat_optimiser.am-workspace .am-sidebar-theme label { min-width: 54px; }
+#amily2_chat_optimiser.am-workspace :is(.amily2_settings_block,.hly-control-block) { margin: 10px 0; }
+#amily2_chat_optimiser.am-workspace :is(.amily2_settings_block,.hly-control-block):has(> label > input[type='checkbox']),
+#amily2_chat_optimiser.am-workspace :is(.amily2_settings_block,.hly-control-block):has(> input[type='checkbox']) { display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 12px; }
+#amily2_chat_optimiser.am-workspace :is(.toggle-switch,.hly-toggle-switch) { display: inline-flex; flex: 0 0 auto; width: auto !important; margin: 0; }
+#amily2_chat_optimiser.am-workspace :is(.toggle-switch,.hly-toggle-switch) .slider { display: none; }
+#amily2_chat_optimiser.am-workspace .amily2_profile_status_card { padding: 14px !important; margin: 12px 0 !important; border: 1px solid var(--am-line) !important; border-radius: 8px !important; background: var(--am-field) !important; }
+#amily2_chat_optimiser.am-workspace .am-connection-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#amily2_chat_optimiser.am-workspace .am-connection-facts { display: grid; gap: 8px; margin: 12px 0; }
+#amily2_chat_optimiser.am-workspace .am-connection-facts > div { display: grid; grid-template-columns: 36px minmax(0,1fr); gap: 10px; }
+#amily2_chat_optimiser.am-workspace .am-connection-facts dt { color: var(--am-muted); }
+#amily2_chat_optimiser.am-workspace .am-connection-facts dd { margin: 0; overflow-wrap: anywhere; }
+#amily2_chat_optimiser.am-workspace .am-connection-actions { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--am-line); padding-top: 12px; }
+#amily2_chat_optimiser.am-workspace .amily2_psc_result { flex-basis: 100%; }
+#amily2_chat_optimiser.am-workspace .am-connections-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; clear: both; margin-bottom: 12px; }
+#amily2_chat_optimiser.am-workspace .am-connections-toolbar p { margin: 0; color: var(--am-muted); }
+#amily2_chat_optimiser.am-workspace .am-connections-toolbar button { margin-left: 0 !important; }
+#amily2_chat_optimiser.am-workspace .am-api-filters { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; padding: 6px; background: var(--am-field); border-radius: 8px; }
+#amily2_chat_optimiser.am-workspace .am-api-filters button { width: 100%; border-color: transparent !important; background: transparent !important; }
+#amily2_chat_optimiser.am-workspace .am-api-filters button.active { background: var(--am-surface) !important; color: var(--am-accent) !important; }
+#amily2_chat_optimiser.am-workspace .amily2_profile_card { grid-template-columns: minmax(0,1fr); gap: 12px !important; padding: 14px !important; margin: 0 0 10px; background: var(--am-field) !important; border: 1px solid var(--am-line) !important; border-radius: 8px !important; }
+#amily2_chat_optimiser.am-workspace .am-profile-actions { border-top: 1px solid var(--am-line); padding-top: 10px; justify-content: flex-end; }
+#amily2_chat_optimiser.am-workspace .am-profile-name { white-space: normal !important; overflow-wrap: anywhere; }
+#amily2_chat_optimiser.am-workspace .am-profile-meta { display: grid; gap: 6px; }
+#amily2_chat_optimiser.am-workspace .hly-edict-row { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 8px 0; }
+#amily2_chat_optimiser.am-workspace .hly-imperial-edict > .am-settings-fold > .hly-edict-row { padding: 8px 14px; }
+#amily2_chat_optimiser.am-workspace .am-vector-setup p { overflow-wrap: anywhere; }
+#amily2_chat_optimiser.am-workspace .am-setting-card > small.notes { text-align: left !important; }
+#amily2_chat_optimiser.am-workspace .hly-edict-item { overflow-wrap: anywhere; }
+#amily2_chat_optimiser.am-workspace #hly-log-output { max-height: 220px; overflow: auto; }
+@media (min-width: 860px) {
+  #amily2_chat_optimiser.am-workspace .am-route-pane { padding: 24px; }
+  #amily2_chat_optimiser.am-workspace .am-api-filters { grid-template-columns: repeat(4,minmax(0,1fr)); }
+}
+dialog.am-memory-ui { box-sizing: border-box; }
+dialog.am-memory-ui.am-regenerate-dialog:not(#amily2_profile_modal) { width: min(520px, calc(100vw - 24px)); }
+dialog.am-memory-ui.am-regenerate-dialog .popup-content { height: auto !important; max-height: 55vh; }
+.am-regenerate-label { display: grid; gap: 8px; text-align: left; }
+.am-regenerate-request { min-height: 130px; width: 100%; resize: vertical; }

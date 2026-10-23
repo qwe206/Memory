@@ -1,0 +1,14 @@
+/* Preserve the original Amily controls, with bounded widths and touch targets. */
+#amily2_drawer_content { max-width: min(100vw, 920px); max-height: calc(100dvh - 60px); overflow-y: auto; overflow-x: hidden; }
+#amily2_chat_optimiser.amily2-memory-personal, #amily2_chat_optimiser.amily2-memory-personal * { box-sizing: border-box; min-width: 0; overflow-wrap: anywhere; }
+#amily2_chat_optimiser.amily2-memory-personal { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; --amily2-bg-image: none; }
+#amily2_chat_optimiser.amily2-memory-personal :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea) { max-width: 100%; font-size: 16px; }
+#amily2_chat_optimiser.amily2-memory-personal :is(button,select,input:not([type="checkbox"]):not([type="radio"])) { min-height: 44px; }
+#amily2_chat_optimiser.amily2-memory-personal .button-group { flex-wrap: wrap; }
+#amily2_chat_optimiser.amily2-memory-personal .button-group > button { flex: 1 1 130px; }
+#amily2_chat_optimiser.amily2-memory-personal .manual-command-block { flex-wrap: wrap; }
+#amily2_chat_optimiser.amily2-memory-personal .side-button { writing-mode: horizontal-tb; height: auto; width: auto; }
+#amily2_chat_optimiser.amily2-memory-personal :is(.settings-group, .control-pair-container, .amily2_settings_block) { max-width: 100%; }
+#amily2_chat_optimiser.amily2-memory-personal .am2-ac-routing { overflow-x: auto; }
+#amily2_chat_optimiser.amily2-memory-personal :focus-visible { outline: 2px solid var(--SmartThemeQuoteColor, #80bfff); outline-offset: 2px; }
+@media (min-width: 600px) { #amily2_drawer_content { width: min(90vw, 920px); } }

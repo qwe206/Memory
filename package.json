@@ -1,0 +1,27 @@
+{
+  "name": "memory",
+  "version": "1.0.0",
+  "description": "SillyTavern chat memory, summaries and vector knowledge",
+  "main": "personal/main.js",
+  "scripts": {
+    "zip": "zip -r memory.zip . -x '*.git*' -x 'node_modules/*' -x '*.zip' -x 'package*.json'",
+    "test": "node --test personal/tests/*.test.mjs"
+  },
+  "keywords": [
+    "sillytavern",
+    "extension",
+    "chat",
+    "ai",
+    "optimization"
+  ],
+  "author": "Wx-2025",
+  "license": "CC-BY-NC-ND-4.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qwe206/Memory.git"
+  },
+  "devDependencies": {
+    "acorn": "8.15.0",
+    "jquery": "3.7.1"
+  }
+}

@@ -1,0 +1,23 @@
+/* Summary dialogs use the same surfaces and spacing as the settings workspace. */
+dialog.am-memory-ui .popup-body { min-height: 0; }
+.am-memory-ui #historiography-preview-controls { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 4px 0 12px; }
+.am-memory-ui #historiography-preview-controls label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.am-memory-ui #historiography-preview-container { border: 0; padding: 0; }
+.am-memory-ui details.historiography-message-item { padding: 0; margin: 0; border-bottom: 1px solid var(--am-line); }
+.am-memory-ui .historiography-message-item > summary { display: list-item; padding: 12px; margin: 0; min-height: 48px; background: var(--am-surface); color: var(--am-ink) !important; overflow-wrap: anywhere; }
+.am-memory-ui .historiography-message-item[open] > summary { background: var(--am-soft); }
+.am-memory-ui .historiography-editor-container { padding: 12px 0; }
+.am-memory-ui #historiography-preview-container textarea { min-height: 200px; line-height: 1.8; resize: vertical; }
+.am-memory-ui .historiographer-summary-modal textarea { min-height: 40dvh; line-height: 1.8; }
+.am-memory-ui .am-model-picker { min-width: 0; }
+.am-memory-ui select.am-model-options { margin-top: 0; height: 44px !important; padding: 8px !important; background: var(--am-solid-surface, var(--am-surface)) !important; color: var(--am-ink) !important; opacity: 1 !important; backdrop-filter: none !important; }
+.am-memory-ui select.am-model-options[hidden] { display: none !important; }
+.am-memory-ui .am-model-options option { padding: 10px 8px; background: var(--am-solid-surface, var(--am-surface)); color: var(--am-ink); white-space: normal; overflow-wrap: anywhere; }
+.am-memory-ui .am-model-options option:checked { background: var(--am-soft); color: var(--am-ink); }
+.am-memory-ui .am-model-options option[hidden] { display: none; }
+
+.am-memory-ui .am-model-field { align-items: start; }
+
+.am-memory-ui .am-summary-mode { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.am-memory-ui .am-profile-test { flex-wrap: wrap; }
+.am-memory-ui #amily2_pf_test_result { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }

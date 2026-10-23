@@ -1,0 +1,85 @@
+/* Full-screen workspace; original controls retain their IDs, values and handlers. */
+#am-memory-app { position: fixed; inset: 0; margin: 0; padding: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; border: 0; border-radius: 0; overflow: hidden; background: transparent; }
+#am-memory-app:not([open]) { display: none; }
+#am-memory-app::backdrop { background: #0009; }
+#amily2_drawer_content:empty { display: none !important; }
+#amily2_chat_optimiser.am-workspace { display: grid !important; grid-template: 64px minmax(0,1fr) / 0 minmax(0,1fr); width: 100%; height: 100%; overflow: hidden; }
+.am-workspace [hidden] { display: none !important; }
+.am-workspace .am-app-header { grid-area: 1 / 1 / 2 / 3; display: flex; align-items: center; gap: 8px; padding: 8px max(8px,env(safe-area-inset-right)) 8px max(8px,env(safe-area-inset-left)); background: var(--am-surface); }
+.am-workspace .am-app-header h1 { flex: 1; min-width: 0; margin: 0; font-size: 14px !important; font-weight: 600; }
+.am-workspace .am-app-header button { background: var(--am-field) !important; border-color: transparent !important; }
+.am-workspace .am-work-content { grid-area: 2 / 2 / 3 / 3; min-height: 0; overflow: auto; overscroll-behavior: contain; padding-bottom: env(safe-area-inset-bottom); outline-offset: -3px; }
+.am-workspace .am-app-sidebar { position: absolute; inset: 0 auto 0 0; z-index: 10; display: flex; flex-direction: column; width: min(316px,calc(100% - 52px)); height: 100%; background: var(--am-surface); transform: translateX(-100%); visibility: hidden; padding-top: env(safe-area-inset-top); }
+.am-workspace.am-sidebar-open .am-app-sidebar { transform: none; visibility: visible; }
+.am-workspace .am-sidebar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 64px; padding: 8px 12px; }
+.am-workspace .am-sidebar-head strong { font-size: 20px; }
+.am-workspace .am-sidebar-head button { background: var(--am-field) !important; border-color: transparent !important; }
+.am-workspace .am-app-sidebar nav { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 12px 12px; }
+.am-workspace .am-sidebar-foot { padding: 12px; font-size: 12px; color: var(--am-muted); }
+.am-workspace .am-nav-group { display: flex; flex-direction: column; gap: 4px; }
+.am-workspace .am-nav-group p { margin: 12px 0 4px; font-size: 12px; color: var(--am-muted); }
+.am-workspace .am-nav-group button { justify-content: flex-start; width: 100%; background: var(--am-field) !important; border-color: transparent !important; white-space: normal !important; }
+.am-workspace .am-nav-group button[aria-current='page'] { background: var(--am-soft) !important; color: var(--am-accent) !important; font-weight: 600 !important; border-color: var(--am-line) !important; }
+.am-workspace .am-icon { display: block; width: 20px; height: 20px; flex: 0 0 20px; color: inherit; pointer-events: none; }
+.am-workspace .am-menu-toggle, .am-workspace .am-menu-close { width: 44px; padding: 10px !important; }
+.am-workspace .am-nav-group button { gap: 10px; }
+.am-workspace .am-nav-group button span { flex: 1; text-align: left; }
+.am-workspace .am-sidebar-foot { border-top: 1px solid var(--am-line); padding-bottom: max(12px,env(safe-area-inset-bottom)); }
+.am-workspace .am-sidebar-theme { display: flex; align-items: center; gap: 12px; }
+.am-workspace .am-sidebar-theme label { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; margin: 0; }
+.am-workspace .am-sidebar-theme select { flex: 1; }
+.am-workspace .am-sidebar-backdrop { position: absolute; inset: 0; z-index: 9; width: 100%; height: 100%; max-width: none; padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: #0006 !important; }
+.am-workspace .amily2-module, .am-workspace .plugin-features { padding: 0 !important; margin: 0; }
+.am-workspace #amily2_additional_features_panel > :not(.am-route-pane),
+.am-workspace #amily2_api_config_panel > :not(.am-route-pane):not(dialog),
+.am-workspace #amily2_hanlinyuan_panel > .amily2-header,
+.am-workspace .hly-navigation-deck { display: none !important; }
+.am-workspace .am-route-pane, .am-workspace #hly-modal-container, .am-workspace #auth_panel { padding: 20px; width: 100%; }
+.am-workspace .am-route-heading { margin-bottom: 24px; }
+.am-workspace .am-route-heading h2 { font-size: 20px !important; margin: 0 0 8px; }
+.am-workspace .am-route-heading p { font-size: 12px; color: var(--am-muted); margin: 0; }
+.am-workspace .am-home-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: 24px; align-items: start; }
+.am-workspace .am-home-grid > .am-summary-card { padding: 16px; border: 0 !important; border-radius: 12px !important; background: var(--am-surface) !important; margin: 0; }
+.am-workspace .am-summary-card > legend { float: left; width: 100%; padding: 0; margin-bottom: 12px; font-size: 17px !important; }
+.am-workspace .am-summary-card .am-retention-note { clear: both; font-size: 12px; color: var(--am-muted); margin: 0 0 16px; }
+.am-workspace .am-summary-card .manual-command-block { display: grid; grid-template: auto auto auto / minmax(0,1fr) 12px minmax(0,1fr); gap: 12px 6px; }
+.am-workspace .am-summary-card .manual-command-block label { grid-column: 1 / -1; }
+.am-workspace .am-summary-card .manual-command-block input { width: 100% !important; }
+.am-workspace .am-summary-card .manual-command-block button { grid-column: 1 / -1; width: 100%; }
+.am-workspace .am-summary-card .hly-button-group:empty { display: none !important; }
+.am-workspace .am-memory-home > .am-route-heading { display: none; }
+.am-workspace .am-summary-card .manual-command-block label { font-size: 12px !important; }
+.am-workspace .am-range-field { display: flex; flex-direction: column; gap: 6px; }
+.am-workspace .am-saved-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.am-workspace .am-saved-head h3 { margin: 0 !important; }
+.am-workspace .am-memory-status { color: var(--am-muted); font-size: 12px; margin: 12px 0; }
+.am-workspace .am-quick-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.am-workspace .am-quick-links button { background: var(--am-field) !important; }
+.am-workspace .am-memory-entries details { border-top: 1px solid var(--am-line); }
+.am-workspace .am-memory-entries pre { font: inherit; line-height: 1.7; max-height: 50vh; }
+.am-workspace [data-page='automatic'] .auto-command-block { display: flex; flex-direction: column; gap: 8px; }
+.am-workspace [data-page='automatic'] .auto-control-pair { min-height: 44px; }
+.am-workspace [data-page='prompts'] textarea { min-height: 180px; }
+.am-workspace .am-nav-group button:disabled { opacity: .5; }
+#amily2_drawer_icon { min-width: 24px; min-height: 24px; }
+.am-workspace #auth_panel { max-width: 640px; margin: auto; }
+.am-workspace [data-page='about'] .disclaimer-emo { display: none; }
+.am-workspace [data-page='about'] fieldset:has(#amily2_open_additional_features),
+.am-workspace [data-page='about'] fieldset:has(#amily2_open_api_config),
+.am-workspace [data-page='about'] fieldset:has(#amily2_bg_color),
+.am-workspace [data-page='about'] fieldset:has(#amily2_message_board) { display: none !important; }
+.am-workspace .am-route-pane > fieldset > legend { font-size: 16px !important; }
+.am-workspace .am-route-pane .manual-command-block input { max-width: 100%; }
+.am-workspace ::selection { background: var(--am-soft); color: var(--am-ink); }
+.am-workspace { scrollbar-color: var(--am-line) var(--am-bg); caret-color: var(--am-accent); }
+@media (min-width: 860px) {
+  #amily2_chat_optimiser.am-workspace.am-sidebar-open { grid-template-columns: 260px minmax(0,1fr); }
+  .am-workspace .am-app-sidebar { grid-area: 2 / 1 / 3 / 2; position: relative; width: 260px; height: 100%; z-index: 1; }
+  .am-workspace .am-sidebar-head { min-height: 60px; }
+  .am-workspace .am-sidebar-head strong { font-size: 18px; }
+  .am-workspace .am-route-pane, .am-workspace #hly-modal-container { padding: 32px; max-width: 1440px; margin-inline: auto; }
+  .am-workspace .am-home-grid { grid-template-columns: minmax(300px,.9fr) minmax(0,1.2fr); gap: 32px; }
+  .am-workspace .am-memory-home > .am-route-heading { display: block; }
+  .am-workspace .am-memory-home > .am-route-heading h2 { font-size: 28px !important; }
+  .am-workspace .am-route-pane:not([data-page='memory']) { max-width: 1080px; }
+}

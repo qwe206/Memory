@@ -1,0 +1,169 @@
+/* All component rules stay inside our root or our native top-layer dialogs. */
+#amily2_drawer_content {
+  width: calc(100vw - 16px) !important; max-width: 880px !important;
+  max-height: calc(100dvh - 58px) !important; padding: 0 !important;
+  overflow: auto !important; overscroll-behavior: contain;
+  border: 0 !important; border-radius: 14px !important;
+  background: transparent !important; box-shadow: 0 16px 48px #0004;
+}
+#amily2_chat_optimiser.am-memory-ui,
+dialog.am-memory-ui {
+  font: 14px/1.6 var(--am-font) !important;
+  color: var(--am-ink) !important; background: var(--am-bg) !important;
+  text-shadow: none !important; text-align: left; letter-spacing: normal;
+}
+.am-memory-ui *, .am-memory-ui *::before, .am-memory-ui *::after {
+  box-sizing: border-box; min-width: 0; text-shadow: none !important;
+}
+#amily2_chat_optimiser.am-memory-ui {
+  width: 100%; padding: 0 !important; isolation: isolate;
+  --amily2-bg-image: none; --amily2-bg-opacity: 1;
+}
+#amily2_chat_optimiser.am-memory-ui::before { display: none !important; }
+.am-memory-ui :is(button,input,select,textarea) { font-family: var(--am-font) !important; letter-spacing: normal !important; }
+.am-memory-ui :is(p,small,label,legend,span,strong,div) { font-family: inherit; }
+.am-memory-ui :is(input,select,textarea):not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']) {
+  display: block; width: 100% !important; max-width: 100% !important;
+  min-height: 44px; height: auto; padding: 10px 12px !important;
+  border: 1px solid var(--am-line) !important; border-radius: 8px !important;
+  background: var(--am-field) !important; color: var(--am-ink) !important;
+  font-size: 16px !important; line-height: 1.4 !important; box-shadow: none !important;
+  text-overflow: ellipsis;
+}
+.am-memory-ui :is(input,textarea)::placeholder { color: var(--am-muted); opacity: .8; }
+.am-memory-ui textarea { resize: vertical; min-height: 110px; white-space: pre-wrap; }
+.am-memory-ui :is(button,.menu_button,.hly-action-button,.hly-nav-item,.popup-button-ok) {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  flex: 0 0 auto; width: auto; min-width: 44px; min-height: 44px; height: auto;
+  max-width: 100%; margin: 0; padding: 9px 12px !important;
+  border: 1px solid var(--am-line) !important; border-radius: 8px !important;
+  background: var(--am-surface) !important; color: var(--am-ink) !important;
+  font: 500 14px/1.4 var(--am-font) !important; writing-mode: horizontal-tb !important;
+  white-space: nowrap !important; overflow-wrap: normal !important; word-break: keep-all !important;
+  box-shadow: none !important; cursor: pointer; filter: none !important;
+}
+.am-memory-ui :is(button,.menu_button):hover { border-color: var(--am-accent) !important; background: var(--am-soft) !important; }
+.am-memory-ui :is(button,.menu_button):active { transform: translateY(1px); }
+.am-memory-ui :is(button,input,select,textarea):disabled { opacity: .5; cursor: not-allowed; }
+.am-memory-ui :is(.primary,.success,#amily2_profile_modal_save,#amily2_mhb_large_refine_execute,#amily2_mhb_small_manual_execute) {
+  color: var(--am-on-accent) !important; background: var(--am-accent) !important; border-color: var(--am-accent) !important;
+}
+.am-memory-ui :is(.notes,small) { color: var(--am-muted) !important; font-size: 12px !important; line-height: 1.65; font-style: normal; }
+.am-memory-ui :is(label,legend) { color: var(--am-ink) !important; font-size: 14px !important; font-weight: 600; }
+.am-memory-ui :is(legend,.additional-features-title) > i { display: none; }
+.am-memory-ui :is(fieldset,.settings-group,.hly-settings-group) {
+  width: 100%; max-width: 100%; margin: 0 0 20px; padding: 16px 0 0;
+  border: 0 !important; border-top: 1px solid var(--am-line) !important;
+  border-radius: 0 !important; background: transparent !important; box-shadow: none !important;
+}
+.am-memory-ui fieldset > legend { padding: 0 8px 0 0; margin: 0; width: auto; }
+.am-memory-ui .amily2_settings_block { display: flex; flex-direction: column; gap: 7px; padding: 0 !important; margin: 0 0 16px; background: none !important; border: 0 !important; border-radius: 0; }
+.am-memory-ui :is(.control-pair-container,.button-group,.hly-button-group,.manual-command-block,.mhb-prompt-selector-container) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.am-memory-ui .control-pair-container > .amily2_settings_block { flex: 1 1 240px !important; }
+.am-memory-ui .manual-command-block :is(input,select) { flex: 1 1 70px; width: 70px !important; }
+.am-memory-ui .manual-command-block > button { flex: 1 1 120px; }
+.am-memory-ui .auto-control-pair { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 12px 0; }
+.am-memory-ui :is(.toggle-switch,.switch,.hly-toggle-switch) { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 44px !important; min-height: 44px; height: auto !important; }
+/* Checkbox/radio appearance, dimensions and checked states come from the host. */
+.am-memory-ui :is(.toggle-switch,.switch,.hly-toggle-switch) > .slider { display: none !important; }
+.am-memory-ui .auto-control-pair > input[type='number'] { width: 100px !important; flex: 0 0 100px; }
+.am-memory-ui input[type='range'] { width: 100%; min-height: 44px; accent-color: var(--am-accent); }
+.am-memory-ui :focus-visible { outline: 2px solid var(--am-accent) !important; outline-offset: 3px; }
+.am-memory-ui a { color: var(--am-accent) !important; }
+.am-memory-ui :is(h1,h2,h3,h4) { color: var(--am-ink) !important; font-family: inherit !important; font-size: 17px !important; margin: 12px 0; }
+.am-memory-ui .header-divider { display: none; }
+.am-memory-ui .amily2-module { padding: 18px 16px 24px; }
+.am-memory-ui .amily2-module > .amily2-header { display: none !important; }
+.am-memory-ui .plugin-features { padding: 20px 16px; }
+.am-memory-ui .plugin-features > fieldset:has(#amily2_bg_color),
+.am-memory-ui .plugin-features > fieldset:has(#amily2_message_board),
+.am-memory-ui .plugin-features > fieldset:has(#amily2_open_additional_features),
+.am-memory-ui .plugin-features > fieldset:has(#amily2_open_api_config) { display: none !important; }
+.am-memory-ui .am-shell-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; background: var(--am-surface); }
+.am-memory-ui .am-shell-title { font-size: 19px; font-weight: 700; letter-spacing: -.3px; }
+.am-memory-ui .am-shell-caption { display: block; color: var(--am-muted); font-size: 12px; margin-top: 2px; }
+.am-memory-ui .am-shell-tools { display: flex; align-items: center; gap: 8px; }
+.am-memory-ui .am-shell-tools select { font-size: 13px !important; width: 94px !important; padding: 8px !important; }
+.am-memory-ui .am-shell-nav { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 4px; padding: 6px 12px 10px; background: var(--am-surface); border-bottom: 1px solid var(--am-line); }
+.am-memory-ui .am-shell-nav button { padding: 9px 5px !important; border-color: transparent !important; background: transparent !important; }
+.am-memory-ui .am-shell-nav button[aria-current='page'] { background: var(--am-soft) !important; color: var(--am-accent) !important; font-weight: 700 !important; }
+.am-memory-ui .am-sticky-head { position: sticky; top: 0; z-index: 5; }
+.am-memory-ui .am-page-heading { margin: 0 0 20px; }
+.am-memory-ui .am-page-heading h2 { margin: 0 0 4px; font-size: 20px !important; }
+.am-memory-ui .am-page-heading p { margin: 0; font-size: 13px; color: var(--am-muted); }
+.am-memory-ui #amily2_manual_historiography_bureau { border: 0 !important; padding: 0; }
+/* API profiles have predictable tracks rather than fixed labels squeezing a select. */
+.am-memory-ui .amily2_profile_card { display: grid !important; grid-template-columns: minmax(0,1fr) auto; gap: 12px !important; padding: 14px 0 !important; border: 0 !important; border-bottom: 1px solid var(--am-line) !important; border-radius: 0 !important; background: none !important; }
+.am-memory-ui .amily2_profile_card > i { display: none; }
+.am-memory-ui .am-profile-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; color: var(--am-muted) !important; font-size: 12px !important; }
+.am-memory-ui .am-profile-meta span { margin-left: 0 !important; overflow-wrap: anywhere; opacity: 1 !important; }
+.am-memory-ui .am-profile-meta span[style*='border'] { background: var(--am-soft) !important; color: var(--am-accent) !important; border-color: var(--am-line) !important; }
+.am-memory-ui .am-profile-name { font-size: 15px; color: var(--am-ink); }
+.am-memory-ui .am-profile-meta > span:not([style*='border']) { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.am-memory-ui .am-profile-actions { display: flex; gap: 4px; }
+.am-memory-ui .am-profile-actions button { padding: 8px !important; }
+.am-memory-ui .am-slot { display: grid !important; grid-template-columns: minmax(0,1fr) 44px; gap: 8px !important; padding: 14px 0 !important; border-bottom: 1px solid var(--am-line); }
+.am-memory-ui .am-slot-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.am-memory-ui .am-slot-heading span { width: auto !important; font-size: 14px !important; }
+.am-memory-ui .am-slot-kind { font-size: 12px !important; color: var(--am-muted) !important; }
+.am-memory-ui .am-slot > select { grid-column: 1; grid-row: 2; }
+.am-memory-ui .am-slot > button { grid-column: 2; grid-row: 2; }
+.am-memory-ui .am-slot > .toggle-switch { grid-column: 2; grid-row: 1; }
+.am-memory-ui .am-api-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.am-memory-ui .am-api-filters button { font-size: 12px !important; padding: 8px !important; }
+.am-memory-ui .am-api-filters .active { color: var(--am-accent) !important; background: var(--am-soft) !important; }
+/* Native top layer avoids transformed / scrolling drawer ancestors on mobile Safari. */
+#amily2_profile_modal.am-memory-ui {
+  position: fixed !important; inset: 0 !important; margin: auto !important;
+  width: min(540px, calc(100vw - 24px)) !important; max-width: calc(100vw - 24px) !important;
+  max-height: calc(100dvh - 32px) !important; height: auto; padding: 0 !important;
+  border: 1px solid var(--am-line) !important; border-radius: 14px !important;
+  overflow: hidden !important; box-shadow: 0 20px 64px #0005;
+}
+#amily2_profile_modal:not([open]) { display: none !important; }
+#amily2_profile_modal[open] { display: block !important; }
+#amily2_profile_modal::backdrop, dialog.am-memory-ui::backdrop { background: var(--am-overlay); }
+.am-memory-ui .am-profile-dialog { display: flex; flex-direction: column; width: 100% !important; max-height: calc(100dvh - 34px) !important; padding: 0 !important; background: var(--am-bg) !important; border: 0 !important; overflow: hidden !important; }
+.am-memory-ui .am-profile-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; margin: 0 !important; border-bottom: 1px solid var(--am-line); background: var(--am-surface); }
+.am-memory-ui .am-profile-dialog-body { flex: 1; padding: 16px; overflow-y: auto; overscroll-behavior: contain; }
+.am-memory-ui .am-model-field { display: grid !important; grid-template-columns: minmax(0,1fr) auto; gap: 8px; }
+.am-memory-ui .am-profile-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; margin: 0 !important; border-top: 1px solid var(--am-line); background: var(--am-surface); }
+.am-memory-ui #amily2_pf_fetch_models { min-width: 88px; }
+dialog.am-memory-ui:not(#amily2_profile_modal) { width: min(720px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 16px; border: 1px solid var(--am-line); border-radius: 14px; }
+dialog.am-memory-ui .popup-content { height: auto !important; max-height: 65dvh; background: transparent !important; padding: 0 !important; overflow: auto; }
+dialog.am-memory-ui .popup-controls { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 12px; }
+/* Original knowledge-base sub-tabs and progressively disclosed settings. */
+.am-memory-ui #hly-modal-container { width: 100%; max-width: none; padding: 0; }
+.am-memory-ui .hly-navigation-deck { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+.am-memory-ui .hly-nav-item.active { background: var(--am-soft) !important; color: var(--am-accent) !important; }
+.am-memory-ui .hly-tab-pane { display: none; }
+.am-memory-ui .hly-tab-pane.active { display: block; }
+.am-memory-ui :is(.hly-control-block,.hly-control-block-v2) { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.am-memory-ui :is(.hly-flex-row,.hly-control-row) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.am-memory-ui .hly-scroll { max-height: none; overflow: visible; }
+.am-memory-ui .hly-subsection { padding: 12px 0; border-bottom: 1px solid var(--am-line); }
+.am-memory-ui :is(.hly-results-display,.hly-log-output,pre) { max-width: 100%; max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.am-memory-ui details { padding: 10px 0; }
+.am-memory-ui summary { min-height: 44px; display: list-item; cursor: pointer; color: var(--am-accent) !important; }
+.am-memory-ui .mhb-prompt-editor { min-height: 140px; }
+.am-memory-ui .select-with-refresh { display: grid; grid-template-columns: minmax(0,1fr) 44px; gap: 8px; align-items: center; margin: 6px 0 14px; }
+.am-memory-ui .mhb-selector-group { margin: 12px 0; }
+.am-memory-ui .am-settings-fold { border-top: 1px solid var(--am-line); padding: 0; }
+.am-memory-ui .am-settings-fold > summary { padding: 12px 0; font-weight: 600; }
+.am-memory-ui .am-prompt-fold { margin: 0 0 12px; }
+.am-memory-ui .am-prompt-fold > summary { font-size: 13px; }
+.am-memory-ui .editor-buttons-panel { display: flex; flex-wrap: wrap; gap: 8px; }
+.am-memory-ui :is(#amily2_mhb_restore_archive,#amily2_mhb_archive_current) { white-space: normal !important; }
+@media (min-width: 640px) {
+  .am-memory-ui .amily2-module, .am-memory-ui .plugin-features { padding: 24px 32px 32px; }
+  .am-memory-ui .am-shell-head { padding: 20px 28px 14px; }
+  .am-memory-ui .am-shell-nav { padding-inline: 24px; grid-template-columns: repeat(4,minmax(100px,1fr)); }
+  .am-memory-ui .am-slot { grid-template-columns: minmax(180px,1fr) minmax(150px,1fr) 44px 44px; align-items: center; }
+  .am-memory-ui .am-slot > select { grid-column: 2; grid-row: 1; }
+  .am-memory-ui .am-slot > button { grid-column: 3; grid-row: 1; }
+  .am-memory-ui .am-slot > .toggle-switch { grid-column: 4; grid-row: 1; }
+  .am-memory-ui .am-profile-dialog-body { padding: 20px 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .am-memory-ui *, .am-memory-ui *::before, .am-memory-ui *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
