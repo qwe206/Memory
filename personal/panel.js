@@ -53,7 +53,7 @@ export function trimPersonalPanel(root) {
   }
   root.querySelectorAll('[data-amily-i18n="app.name"]').forEach(node => { node.textContent = 'Memory'; });
   const latestVersion = root.querySelector('#amily2_latest_version'); if (latestVersion) latestVersion.textContent = '通过酒馆扩展管理更新';
-  const version = root.querySelector('#amily2_current_version'); if (version) version.textContent = '1.0.0';
+  const version = root.querySelector('#amily2_current_version'); if (version) version.textContent = '1.0.1';
 }
 export function bindPersonalHistoryActions(root) {
   const controls = root.querySelector('#amily2_vectorize_summary_content')?.closest('.auto-control-pair');

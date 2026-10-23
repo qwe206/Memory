@@ -41,7 +41,8 @@ async function harness(vectorize=false){
  globalThis.__fixture=fixture;
  globalThis.toastr={info(){},warning(){},error(){},success(){}};
  globalThis.localStorage={getItem:()=>null};
- globalThis.document={getElementById:()=>({checked:h.vectorize})};
+ h.events=[];
+ globalThis.document={getElementById:()=>({checked:h.vectorize}),dispatchEvent:event=>{h.events.push(event);return true;}};
  let source=await read('core/historiographer.js');const tree=parse(source,{ecmaVersion:'latest',sourceType:'module'});
  for(const node of [...tree.body].reverse())if(node.type==='ImportDeclaration'){
   const replacement=node.specifiers.map(spec=>`const ${spec.local.name}=globalThis.__fixture[${JSON.stringify(spec.imported?.name||'default')}];`).join('\n');
@@ -52,6 +53,51 @@ async function harness(vectorize=false){
  h.preview=async()=>{h.settings.historiographySilent=false;h.confirm=null;h.pending=h.module.executeRefinement('book',7);await new Promise(resolve=>setImmediate(resolve));assert.ok(h.confirm,'original preview shown');};
  h.merge=async()=>{await h.preview();await h.confirm();await h.pending;};return h;
 }
+
+async function autoSummaryHarness(progress,total) {
+ const h=await harness();
+ h.chat=Array.from({length:total},()=>({mes:'原始对话',is_user:false}));
+ h.book.entries[7].content=ledger.appendMicroSummaryBlock('', '已保存的总结', 1, progress, 128000).content;
+ Object.assign(h.settings,{lorebookTarget:'character_main',historiographySmallAutoEnable:true,historiographySmallTriggerThreshold:30,historiographyRetentionCount:5,historiographyLargeAutoEvery:1000});
+ h.fixture.characters[0]={data:{extensions:{world:'book'}}};
+ return h;
+}
+
+test('complete batches with 529 floors and five retained stop at 510 without a short final summary',async()=>{
+ const h=await autoSummaryHarness(450,529);
+ await h.module.executeExpedition();
+ assert.equal(await h.module.readGoldenLedgerProgress('book'),510);
+ assert.equal(h.requests.length,2);
+ assert.match(h.book.entries[7].content,/【451楼至480楼详细总结记录】/);
+ assert.match(h.book.entries[7].content,/【481楼至510楼详细总结记录】/);
+ assert.doesNotMatch(h.book.entries[7].content,/【511楼至524楼详细总结记录】/);
+ await h.module.executeExpedition();await h.module.checkAndTriggerAutoSummary();
+ assert.equal(h.requests.length,2,'neither repeated batch nor automatic checks consume the tail');
+ assert.equal(h.events.at(-1).detail.isRunning,false);
+});
+
+test('automatic summaries wait for 35 unsummarized floors and process exactly 30',async()=>{
+ const h=await autoSummaryHarness(510,529);
+ for(const total of [529,539,544]) {
+  h.chat=Array.from({length:total},()=>({mes:'原始对话',is_user:false}));
+  await h.module.checkAndTriggerAutoSummary();
+  assert.equal(h.requests.length,0,`no summary at ${total} floors`);
+ }
+ h.chat.push({mes:'第545楼',is_user:false});
+ await h.module.checkAndTriggerAutoSummary();
+ assert.equal(h.requests.length,1);assert.equal(await h.module.readGoldenLedgerProgress('book'),540);
+ assert.match(h.book.entries[7].content,/【511楼至540楼详细总结记录】/);
+ await h.module.checkAndTriggerAutoSummary();assert.equal(h.requests.length,1);
+});
+
+test('already persisted progress at 524 is preserved and the next full batch waits until 559',async()=>{
+ const h=await autoSummaryHarness(524,558);const before=h.book.entries[7].content;
+ await h.module.executeExpedition();await h.module.checkAndTriggerAutoSummary();
+ assert.equal(h.book.entries[7].content,before);assert.equal(h.requests.length,0);
+ h.chat.push({mes:'第559楼',is_user:false});await h.module.checkAndTriggerAutoSummary();
+ assert.equal(h.requests.length,1);assert.equal(await h.module.readGoldenLedgerProgress('book'),554);
+ assert.match(h.book.entries[7].content,/【525楼至554楼详细总结记录】/);
+});
 test('old Amily cumulative and vector-placeholder ledgers preserve ranges and never invent missing text',()=>{
  const parsed=ledger.parseLedgerForRefinement(oldLedger().replaceAll('\n','\r\n')+'\r\n');
  assert(parsed.valid);assert.equal(parsed.totalFloors,150);assert.equal(parsed.pendingBlockCount,1);

@@ -87,10 +87,10 @@ export async function checkAndTriggerAutoSummary() {
   const summarizableLength = currentChatLength - retentionCount;
   const unsummarizedCount = summarizableLength - characterCount;
 
-  if (unsummarizedCount >= settings.historiographySmallTriggerThreshold) {
+  if (unsummarizedCount >= threshold) {
     const batchSize = threshold;
     const startFloor = characterCount + 1;
-    const endFloor = Math.min(characterCount + batchSize, summarizableLength);
+    const endFloor = characterCount + batchSize;
     
     console.log(`[大史官] 自动小总结已触发，处理 ${startFloor} 至 ${endFloor} 楼。`);
     await executeManualSummary(startFloor, endFloor, true);
@@ -734,17 +734,16 @@ export async function executeExpedition() {
         const summarizableLength = totalHistory - retentionCount;
         const remainingHistory = summarizableLength - summarizedCount;
 
-        if (remainingHistory <= 0) {
-            toastr.info("总结已是最新，没有待处理的对话。", "完成");
-            isExpeditionRunning = false;
-            document.dispatchEvent(new CustomEvent('amily2-expedition-state-change', { detail: { isRunning: false, manualStop: false } }));
-            return;
-        }
-
         const batchSize = Number(settings.historiographySmallTriggerThreshold);
         if(!Number.isInteger(batchSize)||batchSize<1)throw new Error('每次总结楼层数必须是大于0的整数。');
-        const totalBatches = Math.ceil(remainingHistory / batchSize);
-        toastr.info(`开始批量总结：${remainingHistory} 层历史，分 ${totalBatches} 批次处理！`, "批量总结开始");
+        // Match automatic summaries: keep the retained tail and wait until a
+        // complete batch is available. Never consume a partial final batch.
+        const totalBatches = Math.floor(Math.max(0, remainingHistory) / batchSize);
+        if (totalBatches === 0) {
+            toastr.info(`未总结的对话尚未凑满 ${batchSize} 楼（另保留 ${retentionCount} 楼），本次不生成总结。`, "等待完整批次");
+            return;
+        }
+        toastr.info(`开始批量总结：${totalBatches * batchSize} 层历史，分 ${totalBatches} 批次处理！不足一批的对话继续保留。`, "批量总结开始");
         let currentProgress = summarizedCount;
 
         for (let i = 0; i < totalBatches; i++) {
@@ -754,7 +753,7 @@ export async function executeExpedition() {
             }
 
             const startFloor = currentProgress + 1;
-            const endFloor = Math.min(currentProgress + batchSize, summarizableLength);
+            const endFloor = currentProgress + batchSize;
             const toastTitle = `远征战役 (${i + 1}/${totalBatches})`;
 
             const delay = 2000;
@@ -779,7 +778,7 @@ export async function executeExpedition() {
         }
 
         if(!manualStopRequested) {
-             toastr.success("批量总结已完成，所有待处理对话均已总结。", "批量总结完毕");
+             toastr.success(`批量总结已完成，已总结至第 ${currentProgress} 楼；剩余 ${totalHistory - currentProgress} 楼继续保留，等待凑满下一批。`, "批量总结完毕");
         }
 
     } catch (error) {
