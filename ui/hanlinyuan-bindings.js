@@ -6,7 +6,7 @@ import * as HanlinyuanCore from '../core/rag-processor.js';
 import * as Historiographer from '../core/historiographer.js';
 import * as ContextUtils from '../core/utils/context-utils.js';
 import * as IngestionManager from '../core/ingestion-manager.js';
-import { showContentModal, showHtmlModal } from './page-window.js';
+import { showHtmlModal } from './page-window.js';
 import { openChunkViewer } from '../personal/chunk-viewer.js';
 import { extractBlocksByTags, applyExclusionRules } from '../core/utils/rag-tag-extractor.js';
 import {
@@ -114,7 +114,6 @@ export function bindHanlinyuanEvents() {
     setupGlobalEventHandlers();
     bindPanelToggleEvents();
     bindInternalUIEvents();
-    bindTutorialEvents(); // 【新增】绑定教程按钮事件
     bindAutoSaveEvents(); // 【新增】激活自动保存机制
     bindSessionLockEvent(); // 【新增】绑定会话锁定事件
     initializeUnifiedInjectionEditor(); // 初始化统一注入编辑器
@@ -302,16 +301,6 @@ function bindPanelToggleEvents() {
 
     // 我们自己的返回按钮 (hly-back-to-main) 已被赋予新的ID，并由中央接管。
     // 此处不再需要为它绑定任何事件。
-}
-
-function bindTutorialEvents() {
-    const tutorialButton = document.getElementById('amily2_open_hanlin_tutorial');
-    if (tutorialButton) {
-        tutorialButton.addEventListener('click', () => {
-
-            showContentModal("Memory 知识库使用说明", `${extensionBasePath}/README.md`);
-        });
-    }
 }
 
 function bindInternalUIEvents() {

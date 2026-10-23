@@ -10,7 +10,7 @@ import { setAvailableModels, populateModelDropdown, getLatestUpdateInfo } from "
 
 import { messageFormatting } from '/script.js';
 import { executeManualCommand } from '../core/autoHideManager.js';
-import { showContentModal, showHtmlModal } from './page-window.js';
+import { showHtmlModal } from './page-window.js';
 
 
 function displayDailyAuthCode() {
@@ -678,28 +678,6 @@ export function bindModalEvents() {
             });
             dialogElement.find('.popup-button-cancel').on('click', closeDialog);
             dialogElement[0].showModal();
-        });
-
-    container
-        .off("click.amily2.tutorial")
-        .on("click.amily2.tutorial", "#amily2_open_tutorial, #amily2_open_neige_tutorial", function() {
-            if (!pluginAuthStatus.authorized) return;
-
-            const tutorials = {
-                "amily2_open_tutorial": {
-                    title: "Memory 使用说明",
-                    url: `${extensionBasePath}/README.md`
-                },
-                "amily2_open_neige_tutorial": {
-                    title: "Memory 总结与楼层管理",
-                    url: `${extensionBasePath}/README.md`
-                }
-            };
-
-            const tutorial = tutorials[this.id];
-            if (tutorial) {
-                showContentModal(tutorial.title, tutorial.url);
-            }
         });
 
     container
