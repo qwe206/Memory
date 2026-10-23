@@ -120,7 +120,7 @@ export async function createDrawer() {
     const amily2DrawerHtml = `
       <div id="amily2_main_drawer" class="drawer">
           <div class="drawer-toggle" data-drawer="amily2_drawer_content">
-              <div id="amily2_drawer_icon" class="drawer-icon fa-solid fa-book fa-fw closedIcon interactable" title="Memory" aria-label="打开Memory" tabindex="0"></div>
+              <div id="amily2_drawer_icon" class="drawer-icon fa-solid fa-book fa-fw closedIcon interactable" title="Memory" aria-label="展开Memory" role="button" aria-controls="amily2_drawer_content" aria-expanded="false" tabindex="0"></div>
           </div>
           <div id="amily2_drawer_content" class="drawer-content closedDrawer">
           </div>

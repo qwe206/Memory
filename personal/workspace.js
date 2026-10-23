@@ -9,7 +9,7 @@ import { icon } from './icons.js';
 import { organizeWorkspace } from './organize.js';
 
 let workspace;
-export function openMemoryWorkspace() { workspace?.open(); }
+export function openMemoryWorkspace() { workspace?.toggle(); }
 
 /** Reparent existing controls inside their original module, retaining delegated handlers. */
 export function mountWorkspace(root) {
@@ -30,15 +30,17 @@ export function mountWorkspace(root) {
   for (const [id, label] of Object.entries(plainButtons)) {
     const button = root.querySelector(`#${id}`); if (button) button.textContent = label;
   }
-  const dialog = document.createElement('dialog');
+  const dialog = document.createElement('div');
   dialog.id = 'am-memory-app';
   dialog.setAttribute('aria-label', 'Memory');
-  document.body.append(dialog);
+  const drawer = root.closest('#amily2_drawer_content, .inline-drawer-content') || root.parentElement;
+  drawer.append(dialog);
+  dialog.setAttribute('role', 'region');
   dialog.append(root);
   root.classList.add('am-workspace');
   const head = document.createElement('header');
   head.className = 'am-app-header';
-  head.innerHTML = `<button type="button" class="am-menu-toggle" aria-label="打开菜单" title="菜单" aria-controls="am-app-sidebar" aria-expanded="false">${icon('menu')}</button><h1>记忆管理</h1><button type="button" class="am-app-exit">${icon('exit')}<span>退出</span></button>`;
+  head.innerHTML = `<button type="button" class="am-menu-toggle" aria-label="打开菜单" title="菜单" aria-controls="am-app-sidebar" aria-expanded="false">${icon('menu')}</button><h1>记忆管理</h1><button type="button" class="am-app-exit">${icon('exit')}<span>收起</span></button>`;
   const sidebar = document.createElement('aside');
   sidebar.id = 'am-app-sidebar'; sidebar.className = 'am-app-sidebar';
   sidebar.innerHTML = `<div class="am-sidebar-head"><strong>Memory</strong><button type="button" class="am-menu-close" aria-label="收起菜单" title="收起菜单">${icon('close')}</button></div><nav aria-label="聊天记忆导航"></nav><div class="am-sidebar-foot"></div>`;
@@ -226,11 +228,28 @@ export function mountWorkspace(root) {
   toggle.addEventListener('click', () => setMenu(!menuOpen));
   sidebar.querySelector('.am-menu-close').addEventListener('click', () => setMenu(false));
   backdrop.addEventListener('click', () => setMenu(false));
-  function close() { dialog.close(); }
-  head.querySelector('.am-app-exit').addEventListener('click', close);
-  dialog.addEventListener('cancel', event => { if (menuOpen && narrow.matches) { event.preventDefault(); setMenu(false); } });
-  dialog.addEventListener('close', () => { setMenu(false, false); priorFocus?.focus?.(); });
+  const trigger = document.getElementById('amily2_drawer_icon');
+  function positionDrawer() {
+    const bar = document.getElementById('top-settings-holder');
+    const top = Math.max(0, (bar || trigger)?.getBoundingClientRect().bottom || 48) + 8;
+    drawer.style.setProperty('--memory-drawer-top', top + 'px');
+  }
+  window.addEventListener('resize', positionDrawer);
+  function close(restoreFocus = true) {
+    drawer.style.display = 'none'; drawer.classList.remove('openDrawer'); drawer.classList.add('closedDrawer');
+    trigger?.setAttribute('aria-expanded', 'false');
+    trigger?.classList.remove('openIcon'); trigger?.classList.add('closedIcon');
+    setMenu(false, false);
+    if (restoreFocus) priorFocus?.focus?.();
+  }
+  head.querySelector('.am-app-exit').addEventListener('click', () => close());
+  document.addEventListener('pointerdown', event => {
+    if (drawer.style.display === 'none' || drawer.contains(event.target) || trigger?.contains(event.target) || event.target.closest('dialog')) return;
+    close(false);
+  });
   dialog.addEventListener('keydown', event => {
+    if (event.target.closest('dialog')) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (menuOpen && narrow.matches) setMenu(false); else close(); return; }
     if (event.key !== 'Tab' || !menuOpen || !narrow.matches) return;
     const buttons = [...sidebar.querySelectorAll('button:not(:disabled),select:not(:disabled)')];
     const first = buttons[0], last = buttons.at(-1);
@@ -251,7 +270,7 @@ export function mountWorkspace(root) {
   organizeWorkspace(root);
   const missing = originalControls.filter(control => !root.contains(control));
   if (missing.length) throw new Error(`界面迁移遗漏 ${missing.length} 个原控件。`);
-  workspace = { open() { priorFocus = document.activeElement; syncAuth(); if (!dialog.open) dialog.showModal(); setMenu(!narrow.matches, false); }, close, navigate, themeSelect: themeBlock.querySelector('select'), originalControlCount: originalControls.length };
+  workspace = { open() { priorFocus = document.activeElement; syncAuth(); positionDrawer(); drawer.style.display = 'block'; drawer.classList.remove('closedDrawer'); drawer.classList.add('openDrawer'); trigger?.setAttribute('aria-expanded', 'true'); trigger?.classList.remove('closedIcon'); trigger?.classList.add('openIcon'); setMenu(!narrow.matches, false); }, toggle() { if (drawer.style.display === 'none') workspace.open(); else close(); }, close, navigate, themeSelect: themeBlock.querySelector('select'), originalControlCount: originalControls.length };
   syncAuth(); setMenu(!narrow.matches, false);
   return workspace;
 }
