@@ -9,7 +9,7 @@ import { icon } from './icons.js';
 import { organizeWorkspace } from './organize.js';
 
 let workspace;
-export function openMemoryWorkspace() { workspace?.toggle(); }
+export function openMemoryWorkspace() { workspace?.open(); }
 
 /** Reparent existing controls inside their original module, retaining delegated handlers. */
 export function mountWorkspace(root) {
@@ -229,24 +229,23 @@ export function mountWorkspace(root) {
   sidebar.querySelector('.am-menu-close').addEventListener('click', () => setMenu(false));
   backdrop.addEventListener('click', () => setMenu(false));
   const trigger = document.getElementById('amily2_drawer_icon');
-  function positionDrawer() {
-    const bar = document.getElementById('top-settings-holder');
-    const top = Math.max(0, (bar || trigger)?.getBoundingClientRect().bottom || 48) + 8;
-    drawer.style.setProperty('--memory-drawer-top', top + 'px');
+  const nativeToggle = drawer.closest('.drawer')?.querySelector('.drawer-toggle');
+  let drawerOpen = false;
+  function syncDrawerState() {
+    const open = drawer.classList.contains('openDrawer');
+    trigger?.setAttribute('aria-expanded', String(open));
+    if (open && !drawerOpen) {
+      priorFocus = document.activeElement;
+      syncAuth(); setMenu(!narrow.matches, false);
+    } else if (!open && drawerOpen) setMenu(false, false);
+    drawerOpen = open;
   }
-  window.addEventListener('resize', positionDrawer);
+  new MutationObserver(syncDrawerState).observe(drawer, { attributes: true, attributeFilter: ['class'] });
   function close(restoreFocus = true) {
-    drawer.style.display = 'none'; drawer.classList.remove('openDrawer'); drawer.classList.add('closedDrawer');
-    trigger?.setAttribute('aria-expanded', 'false');
-    trigger?.classList.remove('openIcon'); trigger?.classList.add('closedIcon');
-    setMenu(false, false);
+    if (drawer.classList.contains('openDrawer')) nativeToggle?.click();
     if (restoreFocus) priorFocus?.focus?.();
   }
   head.querySelector('.am-app-exit').addEventListener('click', () => close());
-  document.addEventListener('pointerdown', event => {
-    if (drawer.style.display === 'none' || drawer.contains(event.target) || trigger?.contains(event.target) || event.target.closest('dialog')) return;
-    close(false);
-  });
   dialog.addEventListener('keydown', event => {
     if (event.target.closest('dialog')) return;
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (menuOpen && narrow.matches) setMenu(false); else close(); return; }
@@ -270,7 +269,7 @@ export function mountWorkspace(root) {
   organizeWorkspace(root);
   const missing = originalControls.filter(control => !root.contains(control));
   if (missing.length) throw new Error(`界面迁移遗漏 ${missing.length} 个原控件。`);
-  workspace = { open() { priorFocus = document.activeElement; syncAuth(); positionDrawer(); drawer.style.display = 'block'; drawer.classList.remove('closedDrawer'); drawer.classList.add('openDrawer'); trigger?.setAttribute('aria-expanded', 'true'); trigger?.classList.remove('closedIcon'); trigger?.classList.add('openIcon'); setMenu(!narrow.matches, false); }, toggle() { if (drawer.style.display === 'none') workspace.open(); else close(); }, close, navigate, themeSelect: themeBlock.querySelector('select'), originalControlCount: originalControls.length };
+  workspace = { open() { if (!drawer.classList.contains('openDrawer')) nativeToggle?.click(); }, close, navigate, themeSelect: themeBlock.querySelector('select'), originalControlCount: originalControls.length };
   syncAuth(); setMenu(!narrow.matches, false);
   return workspace;
 }

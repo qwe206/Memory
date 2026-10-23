@@ -1,7 +1,7 @@
 import { notify as toastr } from '../personal/notify.js';
 import { trimPersonalPanel, bindPersonalHistoryActions } from '../personal/panel.js';
 import { mountMemoryShell } from '../personal/shell.js';
-import { openMemoryWorkspace } from '../personal/workspace.js';
+import { doNavbarIconClick } from '/script.js';
 import { applyPersonalFeaturePolicy } from '../personal/features.js';
 import { extension_settings, renderExtensionTemplateAsync } from "/scripts/extensions.js";
 import { extensionName, extensionBasePath, defaultSettings } from "../utils/settings.js";
@@ -131,13 +131,11 @@ export async function createDrawer() {
     const contentPanel = $("#amily2_drawer_content");
     await initializePanel(contentPanel);
 
-    contentPanel.hide();
-    $('#amily2_main_drawer .drawer-toggle').on('click', event => {
-        event.preventDefault(); event.stopPropagation(); openMemoryWorkspace();
-    });
+    // Dynamic extension drawers must bind ST's native handler themselves.
+    $('#amily2_main_drawer .drawer-toggle').on('click', doNavbarIconClick);
     $('#amily2_drawer_icon').on('keydown', event => {
         if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault(); openMemoryWorkspace();
+            event.preventDefault(); $('#amily2_main_drawer .drawer-toggle').trigger('click');
         }
     });
 
