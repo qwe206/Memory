@@ -1,7 +1,7 @@
 {
   "name": "Memory",
   "display_name": "Memory",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": "Wx-2025",
   "description": "聊天记忆管理：大小总结、向量知识库、API 配置与提示词设置。",
   "minSillyTavernVersion": "1.10.0",

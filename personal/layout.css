@@ -1,11 +1,5 @@
 /* All component rules stay inside our root or our native top-layer dialogs. */
-#amily2_drawer_content {
-  width: calc(100vw - 16px) !important; max-width: 880px !important;
-  max-height: calc(100dvh - 58px) !important; padding: 0 !important;
-  overflow: auto !important; overscroll-behavior: contain;
-  border: 0 !important; border-radius: 14px !important;
-  background: transparent !important; box-shadow: 0 16px 48px #0004;
-}
+
 #amily2_chat_optimiser.am-memory-ui,
 dialog.am-memory-ui {
   font: 14px/1.6 var(--am-font) !important;
