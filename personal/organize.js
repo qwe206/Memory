@@ -32,7 +32,7 @@ export function organizeWorkspace(root) {
   });
   refresh();
   const largeAuto = document.createElement('fieldset');
-  largeAuto.innerHTML='<legend>自动生成大总结</legend><label for="am-large-auto-every">每几次小总结生成一次大总结</label><input id="am-large-auto-every" type="number" min="0" max="500" step="1"><small>只计算已保存的小总结。0 表示关闭；生成大总结后重新计数。</small><button type="button" id="am-start-large-auto" class="menu_button">开始自动大总结</button><p role="status" class="notes"></p>';
+  largeAuto.innerHTML='<legend>自动生成大总结</legend><label for="am-large-auto-every">每几次小总结生成一次大总结</label><input id="am-large-auto-every" type="number" min="0" max="500" step="1"><small>只计算已保存的小总结。达到设定份数才合并一组；积压多组会连续处理，不足一组继续保留。0 表示关闭自动触发，手动批量默认每3份一组。</small><button type="button" id="am-start-large-auto" class="menu_button">开始自动大总结</button><p role="status" class="notes"></p>';
   root.querySelector('[data-page="world"] .am-route-heading').after(largeAuto);
   const every=largeAuto.querySelector('input');every.value=extension_settings[extensionName].historiographyLargeAutoEvery ?? 0;
   every.addEventListener('change',()=>{
@@ -51,7 +51,7 @@ export function organizeWorkspace(root) {
       const book = await getTargetLorebookName();
       if (!book) throw new Error('请先选择当前聊天的总结世界书。');
       const saved = await maybeTriggerAutomaticRefinement(book);
-      largeAuto.querySelector('[role="status"]').textContent = saved ? '本轮大总结已完成；后续达到阈值时继续自动生成。' : '自动大总结保持开启；未完成写入或未达到阈值时，保留现有内容。';
+      largeAuto.querySelector('[role="status"]').textContent = saved ? '已连续处理所有完整批次；不足一组的小总结继续保留，后续攒满后自动生成。' : '自动大总结保持开启；未完成写入或未达到阈值时，保留现有内容。';
     } catch (error) { toastr.error(error.message); largeAuto.querySelector('[role="status"]').textContent = error.message; }
     finally { startLarge.disabled = false; }
   });
@@ -125,7 +125,7 @@ export function organizeWorkspace(root) {
   const ngms = fieldset('amily2_ngms_enabled');
   title(ngms,'独立总结连接');
   const intro = ngms?.querySelector(':scope > small');
-  if (intro) intro.textContent = '让总结使用单独的模型连接。';
+  if (intro) intro.textContent = '这是模型路由开关，与模型配置中的独立总结开关是同一个设置。关闭时，大小总结使用“通用总结 API”的分配；开启时使用“独立总结 API”的分配。每一路优先使用已分配方案，无分配才读取该路的手动连接。';
   const stream = root.querySelector('#amily2_ngms_fakestream_enabled')?.closest('.control-group');
   fold(stream,'进阶：流式防超时');
   const ngmsConfig = root.querySelector('#amily2_ngms_config_panel');

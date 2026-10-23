@@ -279,7 +279,7 @@ export function renderSlotAssignments($c) {
         </div>`;
     }).join('');
 
-    $slots.html(rows);
+    $slots.html('<p class="notes">大小总结：关闭独立总结时使用通用总结 API，开启后使用独立总结 API。分配模型不会自动切换这一路由；下方独立开关与独立总结页面同步。</p>' + rows);
 
     $slots.find('.amily2_slot_select').on('change', function () {
         const slot = $(this).data('slot');

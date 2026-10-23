@@ -1,5 +1,8 @@
 import { notify as toastr } from '../personal/notify.js';
 import { extension_settings, getContext } from "/scripts/extensions.js";
+import { eventSource, event_types } from '/script.js';
+import { createSummarySelectors } from '../personal/summary-selector.js';
+import { isSummaryEntry } from '../personal/names.js';
 import {
   extensionName,
   defaultSettings,
@@ -10,7 +13,7 @@ import { applyExclusionRules, extractBlocksByTags } from '../core/utils/rag-tag-
 
 import {
   getAvailableWorldbooks, getLoresForWorldbook,
-  executeManualSummary, executeRefinement,
+  executeManualSummary, executeRefinementBatches, getTargetLorebookName,
   executeExpedition, stopExpedition,
   archiveCurrentLedger, getArchivedLedgers, restoreArchivedLedger
 } from "../core/historiographer.js";
@@ -332,48 +335,27 @@ export function bindHistoriographyEvents() {
     "amily2_mhb_large_refine_execute",
   );
 
-  const updateWorldbookList = async () => {
-    largeWbSelector.innerHTML = '<option value="">正在读取世界书列表…</option>';
-    const worldbooks = await getAvailableWorldbooks();
-    largeWbSelector.innerHTML = ""; // 清空
-    if (worldbooks && worldbooks.length > 0) {
-      worldbooks.forEach((wb) => {
-        const option = document.createElement("option");
-        option.value = wb;
-        option.textContent = wb;
-        largeWbSelector.appendChild(option);
-      });
-
-      largeWbSelector.dispatchEvent(new Event("change"));
-    } else {
-      largeWbSelector.innerHTML = '<option value="">未发现任何国史馆</option>';
+  const selectors = createSummarySelectors({
+    bookSelect:largeWbSelector, entrySelect:largeLoreSelector,
+    listBooks:getAvailableWorldbooks, targetBook:getTargetLorebookName,
+    listEntries:getLoresForWorldbook, isSummary:isSummaryEntry,
+    option:(value,title)=>{const item=document.createElement('option');item.value=value;item.textContent=title;return item;},
+  });
+  const refresh = () => selectors.refresh().catch(error=>toastr.error(error.message));
+  const refreshEntries = () => selectors.refreshEntries().catch(error=>toastr.error(error.message));
+  largeRefreshWbBtn.addEventListener('click',refresh);
+  largeWbSelector.addEventListener('change',refreshEntries);
+  largeRefreshLoresBtn.addEventListener('click',refreshEntries);
+  for (const event of new Set([event_types.CHAT_CHANGED,event_types.CHARACTER_EDITED,event_types.WORLDINFO_UPDATED].filter(Boolean))) eventSource.on(event,refresh);
+  window.addEventListener('focus',refresh);
+  document.addEventListener('memory:summary-target-changed',refresh);
+  document.addEventListener('change',event=>{
+    if (['amily2_target_main','amily2_target_dedicated'].includes(event.target.id)) {
+      extension_settings[extensionName].lorebookTarget=event.target.value;
+      saveSettings();refresh();
     }
-  };
-
-  const updateLoreList = async () => {
-    const selectedWb = largeWbSelector.value;
-    if (!selectedWb) {
-      largeLoreSelector.innerHTML = '<option value="">请先选择国史馆</option>';
-      return;
-    }
-    largeLoreSelector.innerHTML = '<option value="">正在检阅史册...</option>';
-    const lores = await getLoresForWorldbook(selectedWb);
-    largeLoreSelector.innerHTML = ""; // 清空
-    if (lores && lores.length > 0) {
-      lores.forEach((lore) => {
-        const option = document.createElement("option");
-        option.value = lore.key;
-        option.textContent = `[${lore.key}] ${lore.comment}`;
-        largeLoreSelector.appendChild(option);
-      });
-    } else {
-      largeLoreSelector.innerHTML = '<option value="">此国史馆为空</option>';
-    }
-  };
-
-  largeRefreshWbBtn.addEventListener("click", updateWorldbookList);
-  largeWbSelector.addEventListener("change", updateLoreList);
-  largeRefreshLoresBtn.addEventListener("click", updateLoreList);
+  });
+  refresh();
 
   const runLarge = async () => {
     const worldbook = largeWbSelector.value;
@@ -384,7 +366,8 @@ export function bindHistoriographyEvents() {
     }
 
     largeRefineBtn.disabled = true;
-    try { await executeRefinement(worldbook, loreKey); }
+    try { await executeRefinementBatches(worldbook, loreKey); }
+    catch (error) { toastr.error(error.message); }
     finally { largeRefineBtn.disabled = false; }
   };
   largeRefineBtn.addEventListener('click', runLarge);
@@ -425,6 +408,8 @@ function bindNgmsApiEvents() {
         ngmsToggle.addEventListener('change', function() {
             const isEnabled = this.checked;
             updateAndSaveSetting('ngmsEnabled', isEnabled);
+            const assignedToggle = document.querySelector('.amily2_slot_toggle[data-slot="ngms"]');
+            if (assignedToggle) assignedToggle.checked = isEnabled;
             ngmsContent.style.display = isEnabled ? 'block' : 'none';
         });
     }

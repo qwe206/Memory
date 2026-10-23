@@ -27,7 +27,8 @@ async function harness(vectorize=false){
   loadWorldInfo:async()=>structuredClone(h.book),saveWorldInfo:async(_,book)=>{h.book=structuredClone(book);if(h.failWorldSave){h.failWorldSave=false;return false;}},saveBook:async(_,book)=>{h.book=structuredClone(book)},withLoreLock:async(_,fn)=>fn(),getChatIdentifier:async()=> 'char-preview',
   saveLedgerBackup:async(...args)=>{if(h.failBackup)throw new Error('quota');h.backups.push(args)},
   getPresetPrompts:async()=>[],getMixedOrder:()=>[{type:'conditional',id:'coreContent'}],generateRandomSeed:()=> 'seed',
-  callNgmsAI:async messages=>{h.requests.push(messages);if(h.failGeneration)throw Error('generation failed');return `macro-${h.requests.length}`},
+  callAI:async messages=>{(h.routes ||= []).push('main');h.requests.push(messages);return `main-${h.requests.length}`},
+  callNgmsAI:async messages=>{(h.routes ||= []).push('ngms');h.requests.push(messages);if(h.failGeneration || h.requests.length > (h.failGenerationAfter ?? Infinity))throw Error('generation failed');return `macro-${h.requests.length}`},
   showSummaryModal:(text,callbacks)=>{h.firstDraft=text;h.regenerate=options=>callbacks.onRegenerate(null,options);h.confirm=async()=>{const result=await callbacks.onConfirm(text);if(result!==false)callbacks.onSaved?.();return result;};h.cancel=()=>callbacks.onCancel?.()},ingestTextToHanlinyuan:(...args)=>h.ingest(...args),
   compatibleWriteToLorebook:async(book,name,update)=>{h.writeTarget={book,name};if(h.failWrite)return false;h.book.entries[7].content=update(h.book.entries[7].content);return true;},
   executeAutoHide:()=>{},extractBlocksByTags:()=>[],applyExclusionRules:text=>text,
@@ -352,6 +353,55 @@ test('automatic large summaries use saved pending blocks, preserve later blocks 
  assert(!h.requests[1].some(m=>m.content.includes('macro-1')));
  const reloaded=await harness();reloaded.book=structuredClone(h.book);reloaded.settings.historiographyLargeAutoEvery=2;
  assert.equal(await reloaded.module.maybeTriggerAutomaticRefinement('book'),false);
+});
+
+function pendingSmallSummaries(count) {
+ let content='';
+ for(let i=0;i<count;i++) content=ledger.appendMicroSummaryBlock(content,`small-${i+1}`,i*30+1,(i+1)*30,128000).content;
+ return content;
+}
+test('manual and automatic large batches consume groups of three and preserve two trailing small summaries',async()=>{
+ for(const automatic of [false,true]) {
+  const h=await harness();h.settings.historiographyLargeAutoEvery=3;h.book.entries[7].content=pendingSmallSummaries(2);
+  const run=()=>automatic?h.module.maybeTriggerAutomaticRefinement('book'):h.module.executeRefinementBatches('book',7);
+  assert.equal(await run(),false);assert.equal(h.requests.length,0);
+  h.book.entries[7].content=pendingSmallSummaries(8);
+  assert.equal(await run(),true);assert.equal(h.requests.length,2);
+  const parsed=ledger.parseLedgerForRefinement(h.book.entries[7].content);
+  assert.equal(parsed.latest.startFloor,91);assert.equal(parsed.latest.endFloor,180);
+  assert.equal(parsed.pendingBlockCount,2);assert.equal(parsed.totalFloors,240);
+  assert.equal(await run(),false);assert.equal(h.requests.length,2);
+ }
+});
+test('continuous large batches stop on generation failure and retain the unwritten groups',async()=>{
+ const h=await harness();h.settings.historiographyLargeAutoEvery=3;h.book.entries[7].content=pendingSmallSummaries(8);h.failGenerationAfter=1;
+ assert.equal(await h.module.executeRefinementBatches('book',7),true);
+ const parsed=ledger.parseLedgerForRefinement(h.book.entries[7].content);
+ assert.equal(h.requests.length,2);assert.equal(parsed.latest.endFloor,90);assert.equal(parsed.pendingBlockCount,5);
+});
+test('continuous large previews wait for confirmation and cancellation stops subsequent groups',async()=>{
+ const h=await harness();h.settings.historiographyLargeAutoEvery=3;h.settings.historiographySilent=false;h.book.entries[7].content=pendingSmallSummaries(9);
+ const pending=h.module.executeRefinementBatches('book',7);await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(h.requests.length,1);assert.equal(await h.module.executeRefinementBatches('book',7),false);
+ await h.confirm();await new Promise(resolve=>setImmediate(resolve));assert.equal(h.requests.length,2);
+ h.cancel();assert.equal(await pending,true);
+ const parsed=ledger.parseLedgerForRefinement(h.book.entries[7].content);
+ assert.equal(parsed.latest.endFloor,90);assert.equal(parsed.pendingBlockCount,6);
+});
+test('changing the current character main book stops a pending large preview without writing another group',async()=>{
+ const h=await harness();h.settings.historiographyLargeAutoEvery=3;h.settings.historiographySilent=false;
+ h.fixture.characters[0]={data:{extensions:{world:'book'}}};h.book.entries[7].content=pendingSmallSummaries(6);const before=h.book.entries[7].content;
+ const pending=h.module.executeRefinementBatches('book',7);await new Promise(resolve=>setImmediate(resolve));
+ h.fixture.characters[0].data.extensions.world='other-book';await assert.rejects(h.confirm,/状态已变化/);
+ h.cancel();assert.equal(await pending,false);assert.equal(h.requests.length,1);assert.equal(h.book.entries[7].content,before);
+});
+test('the independent summary switch routes both small and large requests to the selected API slot',async()=>{
+ for(const enabled of [false,true]) {
+  const h=await harness();h.settings.ngmsEnabled=enabled;h.settings.lorebookTarget='character_main';h.fixture.characters[0]={data:{extensions:{world:'book'}}};
+  h.book.entries[7].content='';assert.equal(await h.module.executeManualSummary(1,30,true),true);
+  h.book.entries[7].content=pendingSmallSummaries(3);assert.equal(await h.module.executeRefinement('book',7,{silent:true,blockCount:3}),true);
+  assert.deepEqual(h.routes,[enabled?'ngms':'main',enabled?'ngms':'main']);
+ }
 });
 
 test('automatic large preview is deduplicated and cancellation does not clear saved small summaries',async()=>{

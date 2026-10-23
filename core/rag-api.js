@@ -46,18 +46,19 @@ export async function getEmbedRetrievalSettings() {
 /**
  * 获取 Rerank 配置，优先从 ragRerank 槽位 Profile 读取。
  */
-export async function getRerankSettings() {
+export async function getRerankSettings(fallback = getSettings().rerank || {}) {
     const profile = await getSlotProfile('ragRerank');
     if (profile) {
         return {
-            url:     profile.apiUrl,
-            apiKey:  profile.apiKey ?? '',
-            model:   profile.model,
-            top_n:   getSettings().rerank?.top_n ?? 10,
+            ...fallback,
+            url: profile.apiUrl,
+            apiKey: profile.apiKey ?? '',
+            model: profile.model,
+            top_n:   fallback.top_n ?? 10,
             apiMode: 'custom',
         };
     }
-    return getSettings().rerank || {};
+    return fallback;
 }
 
 function normalizeApiResponse(responseData) {
@@ -247,10 +248,11 @@ export async function fetchRerankModels() {
 }
 
 export async function executeRerank(query, documents, rerankSettings = null) {
-    const resolved = rerankSettings || await getRerankSettings();
+    const resolved = await getRerankSettings(rerankSettings || getSettings().rerank || {});
     const { url, apiKey, model, top_n, apiMode = 'custom' } = resolved;
 
     if (!url) throw new Error("Rerank API URL 未提供。");
+    if (!model?.trim()) throw new Error('请选择重排序模型。');
     if (apiMode === 'custom' && !apiKey) throw new Error("自定义模式下，Rerank API Key 未提供。");
 
     const baseUrl = getRerankBaseUrl(url);

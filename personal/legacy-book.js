@@ -23,4 +23,5 @@ export async function selectSummaryWorldbook(name) {
   if (name) settings.historiographyWorldbookOverrides[initial] = name;
   else delete settings.historiographyWorldbookOverrides[initial];
   saveSettingsDebounced();
+  document.dispatchEvent(new Event('memory:summary-target-changed'));
 }

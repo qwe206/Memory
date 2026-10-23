@@ -1,3 +1,5 @@
+import { apiProfileManager } from '../utils/config/ApiProfileManager.js';
+import { syncRerankProfile } from '../personal/rerank-profile.js';
 import { notify as toastr } from '../personal/notify.js';
 
 import { getContext } from '/scripts/extensions.js';
@@ -56,7 +58,7 @@ function bindAutoSaveEvents() {
     container.addEventListener('change', (event) => {
         const target = event.target;
         const key = target.dataset.settingKey;
-        if (!key) return;
+        if (!key || target.disabled) return;
 
         let value;
         const type = target.dataset.type || 'string';
@@ -635,7 +637,17 @@ function loadSettingsToUI() {
     if (settings.retrieval.independentChatMemoryEnabled !== undefined) {
         document.getElementById('hly-independent-chat-memory-enabled').checked = settings.retrieval.independentChatMemoryEnabled;
     }
+    refreshRerankProfile();
 }
+
+
+function refreshRerankProfile() {
+    const profile=apiProfileManager.getProfile(apiProfileManager.getAssignment('ragRerank'));
+    syncRerankProfile(document,profile,HanlinyuanCore.getSettings()?.rerank || {});
+}
+document.addEventListener('amily2:slotAssigned',event=>{
+    if (event.detail?.slot === 'ragRerank') refreshRerankProfile();
+});
 
 function saveSettingsFromUI(isAutoSave = true) {
     const container = document.getElementById('hly-modal-container');
@@ -645,7 +657,7 @@ function saveSettingsFromUI(isAutoSave = true) {
 
     inputs.forEach(target => {
         const key = target.dataset.settingKey;
-        if (!key) return;
+        if (!key || target.disabled) return;
 
         let value;
         const type = target.dataset.type || 'string';

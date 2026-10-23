@@ -38,6 +38,51 @@ class FakeElement extends EventTarget {
  constructor(){super();this.value='';this.dataset={};this.options=[];this.hidden=false;}
  replaceChildren(...options){this.options=options;}
 }
+
+test('summary selectors follow the current target and select its active summary rather than the first unrelated row',async()=>{
+ const {createSummarySelectors}=await load('personal/summary-selector.js');
+ const books=new FakeElement(),entries=new FakeElement();let target='B',release;
+ const control=createSummarySelectors({bookSelect:books,entrySelect:entries,listBooks:async()=>['A','B'],targetBook:async()=>target,
+  listEntries:async name=>name==='slow'?await new Promise(resolve=>{release=resolve}):[{key:1,comment:'other'},{key:7,comment:'[Memory]总结'}],
+  isSummary:row=>row.comment==='[Memory]总结',option:(value,text)=>({value:String(value),text})});
+ await control.refresh();assert.equal(books.value,'B');assert.equal(entries.value,'7');
+ target='A';await control.refresh();assert.equal(books.value,'A');assert.equal(entries.value,'7');
+ books.value='slow';const stale=control.refreshEntries();target='B';await control.refresh();release([{key:99,comment:'[Memory]总结'}]);await stale;
+ assert.equal(books.value,'B');assert.equal(entries.value,'7');
+ target=null;await control.refresh();assert.equal(books.value,'');assert.equal(entries.value,'');
+});
+
+test('assigned rerank metadata is shown with a selected model without exposing keys or modifying fallback settings',async()=>{
+ const {syncRerankProfile}=await load('personal/rerank-profile.js');
+ const ids=['hly-rerank-api-mode','hly-rerank-url','hly-rerank-model','hly-rerank-api-key'];
+ const fields=new Map(ids.map(id=>[id,{value:'',options:[{value:'old-model'}],disabled:false,add(item){this.options.push(item)},ownerDocument:{createElement:()=>({})}}]));
+ const fetchButton={disabled:false};fields.get('hly-rerank-model').parentElement={querySelector:()=>fetchButton};
+ const note={textContent:''},root={querySelector:selector=>selector==='#am-rerank-profile-status'?note:fields.get(selector.slice(1))};
+ const fallback={url:'old-url',model:'old-model',apiKey:'old-key',apiMode:'local_proxy'},before=structuredClone(fallback);
+ syncRerankProfile(root,{name:'assigned',apiUrl:'assigned-url',model:'assigned-model',apiKey:'do-not-display'},fallback);
+ assert.equal(fields.get('hly-rerank-model').value,'assigned-model');assert(fields.get('hly-rerank-model').options.some(x=>x.value==='assigned-model'));
+ assert.equal(fields.get('hly-rerank-api-key').value,'');assert.equal(fields.get('hly-rerank-url').disabled,true);assert.equal(fetchButton.disabled,true);
+ assert.match(note.textContent,/assigned-model/);assert.deepEqual(fallback,before);
+ syncRerankProfile(root,null,fallback);assert.equal(fields.get('hly-rerank-model').value,'old-model');assert.equal(fields.get('hly-rerank-api-key').value,'old-key');assert.equal(fetchButton.disabled,false);
+});
+
+test('assigned rerank profile overrides an explicitly passed stale connection while preserving ranking parameters',async()=>{
+ let source=await read('core/rag-api.js'),ast=parse(source,{ecmaVersion:'latest',sourceType:'module'});
+ let profile={apiUrl:'https://assigned.invalid/v1',apiKey:'assigned-key',model:'assigned-rerank'};
+ globalThis.__rerankFixture={getSlotProfile:async slot=>{assert.equal(slot,'ragRerank');return profile}};
+ for(const node of [...ast.body].reverse())if(node.type==='ImportDeclaration')source=source.slice(0,node.start)+node.specifiers.map(spec=>`const ${spec.local.name}=globalThis.__rerankFixture[${JSON.stringify(spec.imported?.name)}];`).join('\n')+source.slice(node.end);
+ const api=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+ const oldFetch=globalThis.fetch;let request;
+ globalThis.fetch=async(url,options)=>{request={url,options};return{ok:true,json:async()=>({results:[{index:0,relevance_score:.9}]})}};
+ const fallback={url:'https://old.invalid/v1',apiKey:'old-key',model:'',apiMode:'custom',top_n:4};
+ try {
+  await api.executeRerank('query',['text'],fallback);
+  assert.equal(request.url,'https://assigned.invalid/v1/rerank');assert.equal(request.options.headers.Authorization,'Bearer assigned-key');
+  assert.equal(JSON.parse(request.options.body).model,'assigned-rerank');assert.equal(JSON.parse(request.options.body).top_n,4);
+  profile=null;await api.executeRerank('query',['text'],{...fallback,model:'fallback-model'});
+  assert.equal(request.url,'https://old.invalid/v1/rerank');assert.equal(JSON.parse(request.options.body).model,'fallback-model');
+ } finally {globalThis.fetch=oldFetch;}
+});
 test('native chooser remains visible and selected when input gains focus; cache restores choices',async()=>{
  const {bindModelPicker,setModelOptions,restoreModelOptions}=await load('personal/model-picker.js');
  globalThis.Option=class{constructor(text,value){this.text=text;this.value=value}};

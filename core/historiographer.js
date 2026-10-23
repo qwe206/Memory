@@ -45,6 +45,7 @@ let isExpeditionRunning = false;
 let manualStopRequested = false; 
 const automaticRefinements = new Set();
 const activeRefinements = new Set();
+const refinementBatches = new Set();
 
 const RUNNING_LOG_COMMENT = SUMMARY_NAME;
 
@@ -524,10 +525,41 @@ export async function maybeTriggerAutomaticRefinement(worldbook, assertContext =
         if (!found) return false;
         const [key,entry]=found, parsed=parseLedgerForRefinement(entry.content);
         if (!parsed.valid || parsed.pendingBlockCount < every) return false;
-        return await executeRefinement(worldbook,key,{automatic:true,blockCount:every,silent});
+        return await executeRefinementBatches(worldbook,key,{automatic:true,blockCount:every,silent,assertContext});
     } catch(error) {
         toastr.warning(`自动大总结未完成，小总结已保留：${error.message}`); return false;
     } finally { automaticRefinements.delete(worldbook); }
+}
+
+export async function executeRefinementBatches(worldbook, loreKey, options = {}) {
+    const lock = JSON.stringify([String(worldbook), String(loreKey)]);
+    if (isMemoryRecovering() || refinementBatches.has(lock) || activeRefinements.has(lock)) return false;
+    const configured = Number(extension_settings[extensionName].historiographyLargeAutoEvery);
+    const count = Number(options.blockCount ?? (configured || 3));
+    if (!Number.isInteger(count) || count < 1 || count > 500) throw new Error('每次大总结需要 1～500 份小总结。');
+    const assertContext = options.assertContext || captureMemoryContext();
+    refinementBatches.add(lock);
+    let saved = false;
+    try {
+        while (true) {
+            assertContext();
+            const book = await loadWorldInfo(worldbook); assertContext();
+            const entry = book?.entries?.[loreKey];
+            if (!entry || entry.disable || !isSummaryEntry(entry)) throw new Error('活动总结条目已变化，已停止。');
+            const parsed = parseLedgerForRefinement(entry.content);
+            if (!parsed.valid) throw new Error('总结结构不完整，已停止，原文保留。');
+            if (parsed.pendingBlockCount < count) {
+                if (!saved) toastr.info(`已攒 ${parsed.pendingBlockCount} 份小总结，需要 ${count} 份才生成大总结。`, '等待完整批次');
+                return saved;
+            }
+            const result = await executeRefinement(worldbook,loreKey,{...options,blockCount:count});
+            if (!result) return saved;
+            saved = true;
+            assertContext();
+            const updated = await loadWorldInfo(worldbook); assertContext();
+            if (updated?.entries?.[loreKey]?.content === entry.content) throw new Error('大总结未确认写入，后续批次已停止。');
+        }
+    } finally { refinementBatches.delete(lock); }
 }
 
 export async function executeRefinement(worldbook, loreKey, options = {}) {
@@ -1023,7 +1055,7 @@ function saveLedgerIfUnchanged(bookName, key, original, content, assertContext) 
 function captureMemoryContext() {
  const identify = () => {
   const ctx = getContext();
-  return JSON.stringify([ctx.characterId, ctx.groupId, ctx.chatId ?? ctx.getCurrentChatId?.(), extension_settings[extensionName].historiographyWorldbookOverrides?.[chatKey(ctx)]]);
+  return JSON.stringify([ctx.characterId, ctx.groupId, ctx.chatId ?? ctx.getCurrentChatId?.(), extension_settings[extensionName].historiographyWorldbookOverrides?.[chatKey(ctx)], extension_settings[extensionName].lorebookTarget, characters[ctx.characterId]?.data?.extensions?.world]);
  };
  const initial = identify(), revision = getRecoveryRevision();
  return () => { if (identify() !== initial || revision !== getRecoveryRevision()) throw new Error('聊天或归档状态已变化，操作停止；原总结保留。'); };
