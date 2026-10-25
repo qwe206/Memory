@@ -40,3 +40,42 @@ export async function ensureFloorRendered(targetId, { getContext, getChatKey, ge
   check();
   return target;
 }
+
+/** Scroll the actual chat viewport and verify visibility before reporting success. */
+export async function revealFloorInChat(target, { container, closeMenu, nextFrame, validate = () => {}, getStyle = getComputedStyle, elementAtPoint = (x, y) => document.elementFromPoint(x, y) }) {
+  if (!container || !container.contains(target)) throw new Error('目标楼层已不在当前聊天区，请重试。');
+  validate();
+  await closeMenu();
+  await nextFrame();
+  validate();
+  target.hidden = false;
+  if (getStyle(target).display === 'none') target.style.setProperty('display', 'flex', 'important');
+  if (!container.clientHeight || !target.getClientRects().length) throw new Error('聊天区当前不可见，无法定位目标楼层。');
+  const oldBehavior = container.style.getPropertyValue('scroll-behavior');
+  const oldPriority = container.style.getPropertyPriority('scroll-behavior');
+  container.style.setProperty('scroll-behavior', 'auto', 'important');
+  const scroll = () => {
+    const box = container.getBoundingClientRect(), row = target.getBoundingClientRect();
+    const top = container.scrollTop + row.top - box.top - container.clientTop - Math.max(0, (container.clientHeight - row.height) / 2);
+    container.scrollTop = Math.max(0, Math.min(top, container.scrollHeight - container.clientHeight));
+  };
+  const visible = () => {
+    if (!target.isConnected || !container.contains(target)) return false;
+    const box = container.getBoundingClientRect(), row = target.getBoundingClientRect();
+    const top = Math.max(row.top, box.top + container.clientTop, 0);
+    const bottom = Math.min(row.bottom, box.top + container.clientTop + container.clientHeight, globalThis.innerHeight || Infinity);
+    const left = Math.max(row.left, box.left, 0), right = Math.min(row.right, box.right, globalThis.innerWidth || Infinity);
+    return row.height > 0 && bottom > top && right > left && target.contains(elementAtPoint((left + right) / 2, (top + bottom) / 2));
+  };
+  try {
+    scroll(); await nextFrame(); validate();
+    // Native media/layout adjustments can move the viewport after rendering.
+    if (!visible()) { scroll(); await nextFrame(); validate(); }
+    if (!visible()) throw new Error('目标楼层已加载，但聊天区未能滚动到目标，请重试。');
+    target.classList.add('am-floor-jump-target');
+    setTimeout(() => target.classList.remove('am-floor-jump-target'), 2500);
+  } finally {
+    if (oldBehavior) container.style.setProperty('scroll-behavior', oldBehavior, oldPriority);
+    else container.style.removeProperty('scroll-behavior');
+  }
+}

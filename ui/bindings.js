@@ -10,8 +10,9 @@ import { setAvailableModels, populateModelDropdown, getLatestUpdateInfo } from "
 
 import { messageFormatting } from '/script.js';
 import * as Tavern from '/script.js';
-import { ensureFloorRendered } from '../personal/floor-jump.js';
+import { ensureFloorRendered, revealFloorInChat } from '../personal/floor-jump.js';
 import { chatKey } from '../personal/recovery.js';
+import { closeMemoryWorkspace } from '../personal/workspace.js';
 import { executeManualCommand } from '../core/autoHideManager.js';
 import { showHtmlModal } from './page-window.js';
 
@@ -607,9 +608,17 @@ export function bindModalEvents() {
                         node.style.removeProperty('display'); node.hidden = false;
                     }
                 }
-                targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                targetElement.classList.add('highlight_message');
-                setTimeout(() => targetElement.classList.remove('highlight_message'), 2000);
+                const expectedChat = chatKey(getContext()), expectedMessage = getContext().chat[targetId];
+                await revealFloorInChat(targetElement, {
+                    container: document.getElementById('chat'),
+                    closeMenu: () => closeMemoryWorkspace(false),
+                    nextFrame: () => new Promise(resolve => requestAnimationFrame(resolve)),
+                    validate: () => {
+                        if (!pluginAuthStatus.authorized || chatKey(getContext()) !== expectedChat || getContext().chat[targetId] !== expectedMessage) {
+                            throw new Error('聊天或授权状态已变化，本次跳转已停止。');
+                        }
+                    },
+                });
                 progress('已跳转到楼层 ' + targetId);
                 toastr.success('已跳转到楼层 ' + targetId);
             } catch (error) {

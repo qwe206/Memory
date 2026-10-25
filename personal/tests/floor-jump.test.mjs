@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const source = await fs.readFile(new URL('../floor-jump.js', import.meta.url), 'utf8');
-const { ensureFloorRendered } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+const { ensureFloorRendered, revealFloorInChat } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
 const node = id => ({ getAttribute: () => String(id) });
 function fixture(length, start) {
   let nodes = Array.from({ length: length - start }, (_, n) => node(start + n));
@@ -61,4 +61,39 @@ test('older hosts can render the exact target without changing global render set
   const h = fixture(250, 200); h.options.loadOlder = null;
   assert.equal((await ensureFloorRendered(10, h.options)).getAttribute(), '10');
   assert.deepEqual(h.renders, [{ forceId: 10, insertBefore: 200, scroll: false }]);
+});
+
+function scrollFixture() {
+  const style = () => {
+    const values = new Map();
+    return { getPropertyValue: key => values.get(key)?.value || '', getPropertyPriority: key => values.get(key)?.priority || '',
+      setProperty: (key, value, priority = '') => values.set(key, { value, priority }), removeProperty: key => values.delete(key) };
+  };
+  const container = { scrollTop: 0, scrollHeight: 1000, clientHeight: 100, clientTop: 0, style: style(),
+    getBoundingClientRect: () => ({ top: 0, bottom: 100, left: 0, right: 300 }) };
+  const classes = new Set();
+  const target = { hidden: true, isConnected: true, style: style(), classList: { add: value => classes.add(value), remove: value => classes.delete(value) },
+    getClientRects: () => [{}], getBoundingClientRect: () => ({ top: 600 - container.scrollTop, bottom: 620 - container.scrollTop, height: 20, left: 0, right: 300 }) };
+  target.contains = node => node === target; container.contains = node => node === target;
+  let closes = 0;
+  const options = { container, closeMenu: () => { closes++; }, nextFrame: async () => {}, getStyle: () => ({ display: 'none' }), elementAtPoint: () => target };
+  return { container, target, options, classes, closes: () => closes };
+}
+
+test('jump closes the menu and moves the actual chat scroll position before reporting success', async () => {
+  const h = scrollFixture(); h.container.style.setProperty('scroll-behavior', 'smooth');
+  await revealFloorInChat(h.target, h.options);
+  assert.equal(h.closes(), 1); assert.equal(h.container.scrollTop, 560);
+  assert.equal(h.target.hidden, false); assert.equal(h.target.style.getPropertyValue('display'), 'flex');
+  assert.equal(h.target.style.getPropertyPriority('display'), 'important');
+  assert(h.classes.has('am-floor-jump-target')); assert.equal(h.container.style.getPropertyValue('scroll-behavior'), 'smooth');
+});
+
+test('an obscured or unscrollable target cannot produce a successful jump', async () => {
+  const obscured = scrollFixture(); obscured.options.elementAtPoint = () => ({});
+  await assert.rejects(revealFloorInChat(obscured.target, obscured.options), /未能滚动/);
+  assert(!obscured.classes.has('am-floor-jump-target'));
+  const stuck = scrollFixture(); Object.defineProperty(stuck.container, 'scrollTop', { get: () => 0, set() {} });
+  await assert.rejects(revealFloorInChat(stuck.target, stuck.options), /未能滚动/);
+  assert(!stuck.classes.has('am-floor-jump-target'));
 });
