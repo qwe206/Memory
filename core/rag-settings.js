@@ -95,4 +95,5 @@ export const defaultSettings = {
         },
     },
     knowledgeBases: {},
+    chatMemoryBindings: { enabled: false, chats: {} },
 };

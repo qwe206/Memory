@@ -22,6 +22,7 @@ import {
 } from './rag-api.js';
 import { superSort } from './super-sorter.js';
 import { readVectorChunks } from '../personal/vector-reader.js';
+import { bindingOwner, bindingKey, chatBindings, updateChatBindings, restrictBasesToChat, filterBoundChunks } from '../personal/chat-memory-bindings.js';
 import { writeUniqueVectorChunks } from '../personal/vector-writes.js';
 import { migrateRagPrompts } from '../personal/prompt-style.js';
 import { captureKnowledgeState, knowledgeRestorePlan, getRecoveryRevision, isMemoryRecovering } from '../personal/recovery.js';
@@ -159,6 +160,10 @@ export {
     highlightSearchMatch,
     debounce,
     renameKnowledgeBase,
+    getChatMemoryBindingContext,
+    getMemoryBindingReference,
+    saveChatMemoryBindings,
+    clearChatMemoryBindings,
 };
 
 
@@ -224,7 +229,11 @@ async function ingestTextToHanlinyuan(text, source = 'manual', metadata = {}, pr
 
         const existingKbs = Object.values(getKnowledgeBases());
         const origin = metadata.memoryRange ? { worldbook: metadata.bookName, ...metadata.memoryRange, epoch: memoryEpoch(metadata.bookName) } : null;
-        const foundKb = existingKbs.find(kb => kb.name === kbName && (!origin || (kb.memoryOrigin?.epoch || 'original') === origin.epoch));
+        const bindingContext = getChatMemoryBindingContext();
+        const foundKb = existingKbs.find(kb => kb.name === kbName
+            && (!settings.chatMemoryBindings.enabled || (kb.memoryChatKey === bindingKey(bindingContext.owner, bindingContext.chatId)
+                && bindingContext.references.some(ref => ref.collectionId === `${kb.owner || getCharacterStableId()}_${kb.id}` && ref.hashes === null)))
+            && (!origin || (kb.memoryOrigin?.epoch || 'original') === origin.epoch));
 
         if (foundKb) {
             taskId = foundKb.id;
@@ -675,6 +684,59 @@ function getKnowledgeBases() {
     return { ...globalBases, ...localBases };
 }
 
+function getChatMemoryBindingContext() {
+    const live = SillyTavern.getContext();
+    const owner = bindingOwner(live), chatId = getChatId();
+    return { owner, chatId, enabled: Boolean(settings.chatMemoryBindings.enabled),
+        references: chatBindings(settings.chatMemoryBindings, owner, chatId) };
+}
+
+function getMemoryBindingReference(id, scope, hashes = null) {
+    const base = (scope === 'global' ? getGlobalKnowledgeBases() : getLocalKnowledgeBases())[id];
+    if (!base) throw new Error('知识库已不存在，请刷新后重试。');
+    const owner = scope === 'global' ? (base.owner || GLOBAL_SCOPE_ID) : getCharacterStableId();
+    return { collectionId: `${owner}_${id}`, name: base.name, hashes };
+}
+
+function saveChatMemoryBindings(owner, chatIds, references, remove = false) {
+    if (owner !== getChatMemoryBindingContext().owner) throw new Error('角色已切换，请重新打开绑定设置。');
+    updateChatBindings(settings.chatMemoryBindings, owner, chatIds, references, remove);
+    saveSettings();
+}
+
+function clearChatMemoryBindings(owner, chatId) {
+    if (owner !== getChatMemoryBindingContext().owner || chatId !== getChatId()) throw new Error('聊天已切换，请重试。');
+    settings.chatMemoryBindings.chats[bindingKey(owner, chatId)] = [];
+    saveSettings();
+}
+
+function bindingFingerprint() {
+    const { owner, chatId } = getChatMemoryBindingContext();
+    return JSON.stringify([owner, chatId, settings.chatMemoryBindings, settings.retrieval.independentChatMemoryEnabled]);
+}
+
+/** All retrieval paths use this resolver, including priority source groups. */
+async function resolveRetrievalBases() {
+    const charId = getCharacterStableId();
+    const catalog = [
+        ...Object.values(getLocalKnowledgeBases()).filter(b => b.enabled).map(b => ({ ...b, scope: 'local', collectionId: `${charId}_${b.id}` })),
+        ...Object.values(getGlobalKnowledgeBases()).filter(b => b.enabled).map(b => ({ ...b, scope: 'global', collectionId: `${b.owner || GLOBAL_SCOPE_ID}_${b.id}` })),
+    ];
+    if (settings.chatMemoryBindings.enabled) {
+        const { owner, chatId } = getChatMemoryBindingContext();
+        return restrictBasesToChat(catalog, settings.chatMemoryBindings, owner, chatId);
+    }
+    if (settings.retrieval.independentChatMemoryEnabled) {
+        const chatId = getChatId();
+        const chat = chatId && !settings.memoryRecoveryApplied?.[charId]
+            ? [{ id: chatId, collectionId: chatId, name: `当前聊天 (${chatId})`, scope: 'chat', source: 'chat_history' }] : [];
+        return [...chat, ...catalog.filter(b => b.scope === 'global')];
+    }
+    if (catalog.length || settings.memoryRecoveryApplied?.[charId]) return catalog;
+    const collectionId = await getDynamicCollectionId();
+    return collectionId ? [{ id: null, collectionId, name: '旧版宝库 (Legacy)', scope: 'legacy' }] : [];
+}
+
 function addKnowledgeBase(name, source = 'manual') { 
     if (!name || !name.trim()) {
         throw new Error('知识库名称不能为空');
@@ -693,6 +755,13 @@ function addKnowledgeBase(name, source = 'manual') {
     };
 
     bases[taskId] = newBase;
+    if (settings.chatMemoryBindings.enabled) {
+        const { owner, chatId } = getChatMemoryBindingContext();
+        if (owner && chatId) {
+            newBase.memoryChatKey = bindingKey(owner, chatId);
+            updateChatBindings(settings.chatMemoryBindings, owner, [chatId], [getMemoryBindingReference(taskId, 'local')]);
+        }
+    }
     saveSettings();
     
     console.log(`[翰林院-核心] 已为角色 ${charId} 添加新知识库: ${name} (ID: ${taskId})`);
@@ -750,50 +819,10 @@ function generateHash(text) {
 
 async function queryVectors(queryText, options = {}) {
     const { includeBases = null } = options;
-    let basesToQuery = [];
-
-    console.log(`[翰林院-日志] 开始向量查询... (目标: ${includeBases ? '指定知识库' : '所有启用库'})`);
-
-    if (includeBases) {
-        basesToQuery = includeBases;
-        console.log(`[翰林院-日志] 查询白名单已提供，将查询 ${basesToQuery.length} 个特定知识库。`);
-    } 
-    else if (settings.retrieval.independentChatMemoryEnabled) {
-        console.log('[翰林院-日志] 独立聊天记忆模式开启...');
-        
-        const chatId = getChatId();
-        if (chatId && !settings.memoryRecoveryApplied?.[getCharacterStableId()]) {
-            console.log(`[翰林院-日志] 添加当前聊天宝库: ${chatId}`);
-            basesToQuery.push({ id: chatId, name: `当前聊天 (${chatId})`, scope: 'chat' });
-        } else {
-            console.warn('[翰林院-日志] 无法获取当前聊天ID，跳过聊天宝库。');
-        }
-
-        const globalBases = getGlobalKnowledgeBases();
-        const enabledGlobalBases = Object.values(globalBases).filter(b => b.enabled);
-        if (enabledGlobalBases.length > 0) {
-            console.log(`[翰林院-日志] 添加 ${enabledGlobalBases.length} 个已启用的全局知识库。`);
-            basesToQuery.push(...enabledGlobalBases.map(b => ({ ...b, scope: 'global' })));
-        }
-    } 
-    else {
-        console.log('[翰林院-日志] 统一角色卡模式开启...');
-        const localBases = getLocalKnowledgeBases();
-        const globalBases = getGlobalKnowledgeBases();
-        const enabledLocalBases = Object.values(localBases).filter(b => b.enabled);
-        const enabledGlobalBases = Object.values(globalBases).filter(b => b.enabled);
-        
-        basesToQuery.push(...enabledLocalBases.map(b => ({ ...b, scope: 'local' })));
-        basesToQuery.push(...enabledGlobalBases.map(b => ({ ...b, scope: 'global' })));
-
-        if (basesToQuery.length === 0 && !settings.memoryRecoveryApplied?.[getCharacterStableId()]) {
-            console.log('[翰林院-日志] 没有启用的新知识库，尝试查询旧版单体宝库...');
-            const legacyCollectionId = await getDynamicCollectionId();
-            if (legacyCollectionId) {
-                basesToQuery.push({ id: null, name: '旧版宝库 (Legacy)', scope: 'legacy' });
-            }
-        }
-    }
+    const allowedBases = await resolveRetrievalBases();
+    // Re-resolve the scope rather than trusting a caller's includeBases whitelist.
+    const basesToQuery = includeBases === null ? allowedBases : allowedBases.filter(base =>
+        includeBases.some(requested => requested.collectionId === base.collectionId));
 
     if (basesToQuery.length === 0) {
         console.log('[翰林院-日志] 没有可供查询的知识库，查询中止。');
@@ -840,9 +869,9 @@ async function queryVectors(queryText, options = {}) {
 
 async function _executeQueryForBase(base, queryText, queryEmbedding = null) {
     const charId = getCharacterStableId();
-    let collectionId;
+    let collectionId = base.collectionId;
 
-    switch (base.scope) {
+    if (!collectionId) switch (base.scope) {
         case 'legacy':
             collectionId = await getDynamicCollectionId();
             break;
@@ -879,6 +908,17 @@ async function _executeQueryForBase(base, queryText, queryEmbedding = null) {
     };
 
     try {
+        // A bound block may rank below unbound ones: fetch the collection's full
+        // candidate set before filtering, then apply the user's result limit.
+        if (base.boundHashes) {
+            const list = await fetch('/api/vector/list', { method: 'POST', headers: context.getRequestHeaders(),
+                body: JSON.stringify({ collectionId, source: 'webllm', embeddings: {} }) });
+            if (!list.ok) return [];
+            const saved = await list.json();
+            const hashes = Array.isArray(saved) ? saved : saved?.hashes;
+            if (!Array.isArray(hashes) || !hashes.length) return [];
+            requestBody.topK = hashes.length;
+        }
         const response = await fetch('/api/vector/query', {
             method: 'POST',
             headers: context.getRequestHeaders(),
@@ -903,7 +943,8 @@ async function _executeQueryForBase(base, queryText, queryEmbedding = null) {
             rawData = result.data;
         }
 
-        const data = rawData.map(item => {
+        const scopedData = filterBoundChunks(rawData, base.boundHashes, settings.advanced.maxResults);
+        const data = scopedData.map(item => {
             if (!item || typeof item.text !== 'string') return null;
 
             const newMetadata = { source: 'unknown', sourceName: '未知' };
@@ -1214,6 +1255,7 @@ async function rerankResults(allResults, queryText, settings) {
 
 async function rearrangeChat(chat, contextSize, abort, type) {
     const recoveryRevision = getRecoveryRevision();
+    const retrievalFingerprint = bindingFingerprint();
     const injectionKeys = {
         novel: 'HANLINYUAN_RAG_NOVEL',
         chat_history: 'HANLINYUAN_RAG_CHAT',
@@ -1339,7 +1381,7 @@ async function rearrangeChat(chat, contextSize, abort, type) {
             // =================== 多路并行独立检索流程 (V2-精确版) ===================
             console.log('[翰林院] 进入多路并行独立检索流程...');
 
-            const allEnabledBases = Object.values(getKnowledgeBases()).filter(b => b.enabled);
+            const allEnabledBases = await resolveRetrievalBases();
             const prioritySourceNames = Object.keys(prioritySettings.sources).filter(
                 key => prioritySettings.sources[key] && prioritySettings.sources[key].enabled
             );
@@ -1403,7 +1445,7 @@ async function rearrangeChat(chat, contextSize, abort, type) {
             }
         }
 
-        if (isMemoryRecovering() || recoveryRevision !== getRecoveryRevision()) return;
+        if (isMemoryRecovering() || recoveryRevision !== getRecoveryRevision() || retrievalFingerprint !== bindingFingerprint()) return;
         if (!finalResults || finalResults.length === 0) {
             console.log('[翰林院] 最终无可用结果，注入中止。');
             return;

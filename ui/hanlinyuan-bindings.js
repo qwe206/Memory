@@ -10,6 +10,7 @@ import * as ContextUtils from '../core/utils/context-utils.js';
 import * as IngestionManager from '../core/ingestion-manager.js';
 import { showHtmlModal } from './page-window.js';
 import { openChunkViewer } from '../personal/chunk-viewer.js';
+import { openChatBindingDialog, renderChatBindingPanel } from '../personal/chat-binding-ui.js';
 import { extractBlocksByTags, applyExclusionRules } from '../core/utils/rag-tag-extractor.js';
 import {
     filterWorldbooks,
@@ -845,6 +846,7 @@ async function deleteAllLocalKnowledgeBases() {
 }
 
 async function renderKnowledgeBases() {
+    renderChatBindingPanel();
     const localContainer = document.getElementById('hly-kb-list-local');
     const globalContainer = document.getElementById('hly-kb-list-global');
     const localCharNameEl = document.getElementById('hly-local-kb-char-name');
@@ -976,6 +978,7 @@ function _createKbItemElement(id, kb, scope, vectorCount) {
         </div>
         <div class="hly-kb-actions">
             <button type="button" class="am-kb-chunks">查看分块</button>
+            <button type="button" class="am-kb-bind">绑定聊天</button>
             <label class="am-kb-enabled">
                 <input type="checkbox" class="hly-kb-toggle"><span>参与检索</span>
             </label>
@@ -1003,6 +1006,9 @@ async function handleKbAction(event) {
     const kbId = listItem.dataset.kbId;
     const scope = listItem.dataset.kbScope;
     const kbName = listItem.dataset.kbName;
+    if (target.closest('.am-kb-bind') && event.type === 'click') {
+        openChatBindingDialog([HanlinyuanCore.getMemoryBindingReference(kbId, scope)]); return;
+    }
     if (target.closest('.am-kb-chunks') && event.type === 'click') {
         openChunkViewer(kbId,scope,kbName); return;
     }
@@ -1124,6 +1130,11 @@ async function handleBulkAction(event, scope) {
 
     if (selectedIds.length === 0) {
         toastr.warning('请至少选择一个知识库进行操作。', "设置");
+        return;
+    }
+
+    if (action === 'bind') {
+        await openChatBindingDialog(selectedIds.map(id => HanlinyuanCore.getMemoryBindingReference(id, scope)));
         return;
     }
 
