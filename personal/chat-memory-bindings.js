@@ -53,7 +53,6 @@ export function updateChatBindings(state, owner, chatIds, references, remove = f
 }
 
 export function restrictBasesToChat(bases, state, owner, chatId) {
-  if (!state?.enabled) return bases;
   const refs = new Map(chatBindings(state, owner, chatId).map(ref => [ref.collectionId, ref]));
   return bases.flatMap(base => {
     const ref = refs.get(base.collectionId);

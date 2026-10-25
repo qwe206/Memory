@@ -9,6 +9,9 @@ import { safeLorebooks, safeCharLorebooks, safeLorebookEntries } from "../core/t
 import { setAvailableModels, populateModelDropdown, getLatestUpdateInfo } from "./state.js";
 
 import { messageFormatting } from '/script.js';
+import * as Tavern from '/script.js';
+import { ensureFloorRendered } from '../personal/floor-jump.js';
+import { chatKey } from '../personal/recovery.js';
 import { executeManualCommand } from '../core/autoHideManager.js';
 import { showHtmlModal } from './page-window.js';
 
@@ -574,79 +577,45 @@ export function bindModalEvents() {
 
     container
         .off("click.amily2.jump")
-        .on("click.amily2.jump", "#amily2_jump_to_message_btn", function() {
-            const targetId = parseInt($("#amily2_jump_to_message_id").val());
-            if (isNaN(targetId)) {
-                toastr.warning("请输入有效的楼层号");
-                return;
+        .on("click.amily2.jump", "#amily2_jump_to_message_btn", async function() {
+            if (!pluginAuthStatus.authorized || this.disabled) return;
+            const raw = $("#amily2_jump_to_message_id").val();
+            const targetId = Number(raw);
+            if (String(raw).trim() === '' || !Number.isSafeInteger(targetId) || targetId < 0) {
+                toastr.warning("请输入有效的非负整数楼层号"); return;
             }
-
-            // 1. 尝试查找 DOM 元素
-            const targetElement = document.querySelector(`.mes[mesid="${targetId}"]`);
-
-            if (targetElement) {
-                // 【V60.1】增强跳转：自动展开被隐藏的楼层及其上下文
-                const allMessages = Array.from(document.querySelectorAll('.mes'));
-                const targetIndex = allMessages.indexOf(targetElement);
-
-                if (targetIndex !== -1) {
-                    // 展开前后各10条，确保上下文连贯
-                    const contextRange = 10;
-                    const start = Math.max(0, targetIndex - contextRange);
-                    const end = Math.min(allMessages.length - 1, targetIndex + contextRange);
-
-                    let unhiddenCount = 0;
-                    for (let i = start; i <= end; i++) {
-                        const msg = allMessages[i];
-                        if (msg.style.display === 'none') {
-                            msg.style.removeProperty('display');
-                            unhiddenCount++;
-                        }
-                    }
-                    if (unhiddenCount > 0) {
-                        toastr.info(`已临时展开 ${unhiddenCount} 条被隐藏的消息以显示上下文。`);
+            const button = this, original = button.innerHTML;
+            const status = document.querySelector('.am-floor-jump-status');
+            const progress = text => { if (status) status.textContent = text; };
+            button.disabled = true; button.textContent = '正在定位…';
+            try {
+                const targetElement = await ensureFloorRendered(targetId, {
+                    getContext,
+                    getChatKey: context => {
+                        if (!pluginAuthStatus.authorized) throw new Error('授权状态已变化，本次跳转已停止。');
+                        return chatKey(context);
+                    },
+                    getMessages: () => Array.from(document.querySelectorAll('#chat .mes[mesid]')),
+                    loadOlder: typeof Tavern.showMoreMessages === 'function' ? count => Tavern.showMoreMessages(count) : null,
+                    renderMessage: typeof Tavern.addOneMessage === 'function' ? (message, options) => Tavern.addOneMessage(message, options) : null,
+                    yieldToUI: () => new Promise(resolve => setTimeout(resolve, 0)),
+                    onProgress: progress,
+                });
+                // Reveal only the nearby DOM; saved hidden flags and model context stay intact.
+                for (const node of document.querySelectorAll('#chat .mes[mesid]')) {
+                    if (Math.abs(Number(node.getAttribute('mesid')) - targetId) <= 10) {
+                        node.style.removeProperty('display'); node.hidden = false;
                     }
                 }
-
-                targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 targetElement.classList.add('highlight_message');
                 setTimeout(() => targetElement.classList.remove('highlight_message'), 2000);
-                toastr.success(`已跳转到楼层 ${targetId}`);
-            } else {
-                // 2. DOM 中未找到，尝试从内存中获取并弹窗显示
-                const context = getContext();
-                if (context && context.chat && context.chat[targetId]) {
-                    const msg = context.chat[targetId];
-                    const sender = msg.name;
-                    let formattedContent = msg.mes;
-
-                    // 尝试使用 SillyTavern 的格式化函数
-                    if (typeof messageFormatting === 'function') {
-                        formattedContent = messageFormatting(msg.mes, sender, false, false);
-                    } else {
-                        formattedContent = msg.mes.replace(/\n/g, '<br>');
-                    }
-
-                    const html = `
-                        <div style="padding: 10px;">
-                            <div style="margin-bottom: 10px; font-size: 1.1em; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
-                                <strong style="color: var(--smart-theme-color, #ffcc00);">${sender}</strong>
-                                <span style="opacity: 0.6; font-size: 0.8em;">(楼层 #${targetId})</span>
-                            </div>
-                            <div class="mes_text" style="max-height: 60vh; overflow-y: auto;">
-                                ${formattedContent}
-                            </div>
-                            <div style="margin-top: 15px; font-size: 0.9em; opacity: 0.7; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
-                                <i class="fas fa-info-circle"></i> 该楼层未在当前页面渲染（可能已被清理以节省内存），无法直接跳转，已为您在弹窗中显示。
-                            </div>
-                        </div>
-                    `;
-
-                    showHtmlModal(`查看历史记录`, html);
-                    toastr.info(`楼层 ${targetId} 未渲染，已在弹窗中显示内容。`);
-                } else {
-                    toastr.error(`未找到楼层 ${targetId}，聊天记录中不存在该索引。`);
-                }
+                progress('已跳转到楼层 ' + targetId);
+                toastr.success('已跳转到楼层 ' + targetId);
+            } catch (error) {
+                progress(error.message); toastr.warning(error.message);
+            } finally {
+                button.disabled = false; button.innerHTML = original;
             }
         });
 

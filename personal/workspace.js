@@ -87,8 +87,9 @@ export function mountWorkspace(root) {
     const label = document.createElement('label'); label.htmlFor = jumpInput.id; label.textContent = '目标楼层号';
     jumpInput.min = '0'; jumpInput.step = '1';
     const help = document.createElement('p'); help.className = 'notes';
-    help.textContent = '按酒馆显示的楼层编号输入，从 0 开始。';
-    jump.append(legend, label, jumpRow, help);
+    help.textContent = '从 0 开始。未显示的历史楼层会自动分批加载后跳转，无需先点“加载更多”。';
+    const status = document.createElement('p'); status.className = 'am-floor-jump-status notes'; status.setAttribute('role', 'status');
+    jump.append(legend, label, jumpRow, help, status);
     floors.querySelector('.am-route-heading').after(jump);
     jumpInput.addEventListener('keydown', event => {
       if (event.key === 'Enter') { event.preventDefault(); root.querySelector('#amily2_jump_to_message_btn')?.click(); }

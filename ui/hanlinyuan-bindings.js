@@ -978,11 +978,11 @@ function _createKbItemElement(id, kb, scope, vectorCount) {
         </div>
         <div class="hly-kb-actions">
             <button type="button" class="am-kb-chunks">查看分块</button>
-            <button type="button" class="am-kb-bind">绑定聊天</button>
             <label class="am-kb-enabled">
                 <input type="checkbox" class="hly-kb-toggle"><span>参与检索</span>
             </label>
             <details class="am-kb-more"><summary>更多操作</summary><div>
+              <button type="button" class="am-kb-bind">绑定聊天</button>
               <button type="button" class="hly-kb-move-btn"></button>
               <button type="button" class="hly-kb-rename-btn">重命名</button>
               <button type="button" class="hly-kb-delete-btn">删除知识库</button>
@@ -1130,11 +1130,6 @@ async function handleBulkAction(event, scope) {
 
     if (selectedIds.length === 0) {
         toastr.warning('请至少选择一个知识库进行操作。', "设置");
-        return;
-    }
-
-    if (action === 'bind') {
-        await openChatBindingDialog(selectedIds.map(id => HanlinyuanCore.getMemoryBindingReference(id, scope)));
         return;
     }
 

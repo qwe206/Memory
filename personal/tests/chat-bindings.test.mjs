@@ -116,9 +116,11 @@ test('switching chats during retrieval discards results; newly imported memories
   h.changeChat('one'); assert(!(await h.api.resolveRetrievalBases()).some(item => item.id === base.id));
 });
 
-test('turning binding mode off restores original scopes, including independent-chat priority selection', async () => {
+test('saved bindings always apply even when the old opt-in flag was off', async () => {
   const h = await harness(); h.settings.chatMemoryBindings.enabled = false;
-  assert.deepEqual((await h.api.resolveRetrievalBases()).map(b => b.collectionId), ['char_a', 'another_b']);
+  h.bind([{ collectionId: 'char_a', hashes: ['1'] }]);
+  assert.deepEqual((await h.api.resolveRetrievalBases()).map(b => b.collectionId), ['char_a']);
   h.settings.retrieval.independentChatMemoryEnabled = true;
-  assert.deepEqual((await h.api.resolveRetrievalBases()).map(b => b.collectionId), ['one', 'another_b']);
+  assert.deepEqual((await h.api.resolveRetrievalBases()).map(b => b.collectionId), ['char_a']);
+  h.changeChat('fresh'); assert.deepEqual(await h.api.resolveRetrievalBases(), []);
 });

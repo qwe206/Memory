@@ -16,19 +16,33 @@ export function renderChatBindingPanel() {
   if (!panel) {
     panel = document.createElement('fieldset'); panel.className = 'hly-settings-group am-chat-bindings';
     const legend = document.createElement('legend'); legend.textContent = '聊天记忆绑定';
-    panel.innerHTML = '<label class="am-binding-switch"><input type="checkbox"> 仅检索当前聊天绑定的记忆</label><p class="am-section-help">开启后，新聊天从空白记忆开始；局部库、全局库和优先检索都遵守绑定。在本聊天中新入库的记忆会自动绑定。关闭后恢复原有检索范围，不删除向量。</p><p class="am-binding-current"></p><div class="am-binding-list"></div><p class="am-section-help">在下方多选知识库后点击“绑定聊天”；只选部分内容，请进入“查看分块”。</p>';
+    panel.innerHTML = '<div class="am-binding-overview"><div><p class="am-binding-current"></p><p class="am-binding-count"></p></div><button type="button" class="am-binding-pick">选择记忆</button></div><p class="am-section-help">绑定后自动用于对应聊天；新聊天从空白记忆开始，新入库内容自动归入当前聊天。</p><div class="am-binding-picker" hidden><p class="am-section-help">在下方勾选知识库，可同时选择局部库和全局库。只要部分内容，请进入“查看分块”。</p><button type="button" class="am-binding-pick-save" disabled>绑定所选知识库</button><span class="am-binding-picked-count" role="status"></span></div><details class="am-binding-details"><summary>管理已绑定记忆</summary><div class="am-binding-list"></div><button type="button" class="am-binding-clear">解除当前聊天的全部绑定</button></details>';
     panel.prepend(legend); page.prepend(panel);
-    panel.querySelector('input').addEventListener('change', event => {
-      if (!pluginAuthStatus.authorized) return;
-      Memory.getSettings().chatMemoryBindings.enabled = event.target.checked;
-      Memory.saveSettings(); renderChatBindingPanel();
+    panel.querySelector('.am-binding-pick').addEventListener('click', () => {
+      const picking = page.classList.toggle('am-binding-picking');
+      panel.querySelector('.am-binding-picker').hidden = !picking;
+      panel.querySelector('.am-binding-pick').textContent = picking ? '完成选择' : '选择记忆';
+      updatePickedCount();
     });
-    panel.append(button('清空当前聊天的绑定', () => {
+    const selectedReferences = () => [...page.querySelectorAll('.hly-kb-item-checkbox:checked')].map(input => {
+      const row = input.closest('.hly-kb-list-item');
+      return Memory.getMemoryBindingReference(row.dataset.kbId, row.dataset.kbScope);
+    });
+    function updatePickedCount() {
+      const count = page.querySelectorAll('.hly-kb-item-checkbox:checked').length;
+      panel.querySelector('.am-binding-picked-count').textContent = '已选 ' + count + ' 个知识库';
+      panel.querySelector('.am-binding-pick-save').disabled = !count;
+    }
+    page.addEventListener('change', updatePickedCount);
+    panel.querySelector('.am-binding-pick-save').addEventListener('click', () => {
+      try { openChatBindingDialog(selectedReferences()); } catch (error) { notify.warning(error.message); }
+    });
+    panel.querySelector('.am-binding-clear').addEventListener('click', () => {
       const current = Memory.getChatMemoryBindingContext();
       if (!pluginAuthStatus.authorized || !current.chatId || !current.owner) return;
       Memory.clearChatMemoryBindings(current.owner, current.chatId); renderChatBindingPanel();
       notify.success('已解除当前聊天的全部绑定，原向量数据保留。');
-    }));
+    });
     const ctx = SillyTavern.getContext();
     const changed = () => { if (panel.isConnected) renderChatBindingPanel(); };
     ctx.eventSource?.on(ctx.eventTypes?.CHAT_CHANGED || 'chat_id_changed', changed);
@@ -36,7 +50,8 @@ export function renderChatBindingPanel() {
   const current = Memory.getChatMemoryBindingContext();
   const heading = page.querySelector(':scope > .am-vector-title');
   if (heading) heading.after(panel);
-  panel.querySelector('input').checked = current.enabled;
+  panel.querySelector('.am-binding-count').textContent = current.references.length ? '已绑定 ' + current.references.length + ' 个知识库 · 自动生效' : '尚未绑定记忆';
+  panel.querySelector('.am-binding-pick').disabled = !current.owner || !current.chatId;
   panel.querySelector('.am-binding-current').textContent = current.chatId ? `当前聊天：${current.chatId}` : '请先打开一个聊天。';
   const list = panel.querySelector('.am-binding-list'); list.replaceChildren();
   for (const ref of current.references) {
@@ -50,8 +65,8 @@ export function renderChatBindingPanel() {
       } catch (error) { notify.warning(error.message); }
     })); list.append(row);
   }
-  if (!current.references.length) list.textContent = current.enabled ? '尚未绑定记忆，本聊天不会检索旧知识库。' : '尚未绑定记忆，当前仍使用原有检索范围。';
-  panel.lastElementChild.disabled = !current.owner || !current.chatId || !current.references.length;
+  if (!current.references.length) list.textContent = '本聊天不会检索旧知识库。点击“选择记忆”添加需要的内容。';
+  panel.querySelector('.am-binding-clear').disabled = !current.owner || !current.chatId || !current.references.length;
 }
 
 /** Uses ST's chat-file search API; it reads names, never chat contents. */
@@ -74,9 +89,8 @@ export async function openChatBindingDialog(references) {
   if (!captured.owner || !captured.chatId) { notify.warning('请先打开一个聊天。'); return; }
   const dialog = document.createElement('dialog'); dialog.className = 'am-chunk-viewer am-chat-binding-dialog';
   dialog.setAttribute('aria-label', '绑定聊天文件');
-  dialog.innerHTML = '<header><h2>绑定聊天文件</h2><button type="button" class="am-binding-close">取消</button></header><p class="am-binding-selection"></p><p class="am-section-help">可选择多个聊天。绑定会合并到各聊天已有的选择；解除绑定只影响本次选择，向量原文保留。</p><label class="am-chunk-search-label">搜索聊天文件<input type="search" placeholder="输入聊天文件名称"></label><p class="am-binding-status" role="status">正在读取聊天文件…</p><div class="am-binding-chat-list"></div><label class="am-binding-switch"><input type="checkbox" class="am-binding-enable"> 启用按聊天绑定（新聊天不会读取未绑定的旧记忆）</label><footer><button type="button" class="am-binding-remove" disabled>解除所选绑定</button><button type="button" class="am-binding-save" disabled>绑定到所选聊天</button></footer>';
+  dialog.innerHTML = '<header><h2>绑定聊天文件</h2><button type="button" class="am-binding-close">取消</button></header><p class="am-binding-selection"></p><p class="am-section-help">可选择多个聊天。绑定会合并到各聊天已有的选择；解除绑定只影响本次选择，向量原文保留。</p><label class="am-chunk-search-label">搜索聊天文件<input type="search" placeholder="输入聊天文件名称"></label><p class="am-binding-status" role="status">正在读取聊天文件…</p><div class="am-binding-chat-list"></div><footer><button type="button" class="am-binding-remove" disabled>解除所选绑定</button><button type="button" class="am-binding-save" disabled>绑定到所选聊天</button></footer>';
   dialog.querySelector('.am-binding-selection').textContent = `已选 ${references.length} 个知识库 · ${references.some(ref => ref.hashes === null) ? '包含整库绑定' : references.reduce((n, ref) => n + ref.hashes.length, 0) + ' 个分块'}`;
-  dialog.querySelector('.am-binding-enable').checked = captured.enabled;
   document.body.append(dialog); themeMemoryDialog(dialog);
   const controller = new AbortController();
   dialog.addEventListener('close', () => { controller.abort(); dialog.remove(); });
@@ -113,8 +127,14 @@ export async function openChatBindingDialog(references) {
     try {
       valid();
       Memory.saveChatMemoryBindings(captured.owner, [...selected], references, unbind);
-      if (!unbind && dialog.querySelector('.am-binding-enable').checked) {
-        Memory.getSettings().chatMemoryBindings.enabled = true; Memory.saveSettings();
+      const page = document.querySelector('#hly-knowledge-bases-tab');
+      if (page?.classList.contains('am-binding-picking')) {
+        page.classList.remove('am-binding-picking');
+        page.querySelector('.am-binding-picker').hidden = true;
+        page.querySelector('.am-binding-pick').textContent = '选择记忆';
+        for (const input of page.querySelectorAll('.hly-kb-item-checkbox:checked')) {
+          input.checked = false; input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
       }
       renderChatBindingPanel(); dialog.close();
       notify.success(`已${unbind ? '解除' : '保存'} ${selected.size} 个聊天的记忆绑定。`);

@@ -231,8 +231,8 @@ async function ingestTextToHanlinyuan(text, source = 'manual', metadata = {}, pr
         const origin = metadata.memoryRange ? { worldbook: metadata.bookName, ...metadata.memoryRange, epoch: memoryEpoch(metadata.bookName) } : null;
         const bindingContext = getChatMemoryBindingContext();
         const foundKb = existingKbs.find(kb => kb.name === kbName
-            && (!settings.chatMemoryBindings.enabled || (kb.memoryChatKey === bindingKey(bindingContext.owner, bindingContext.chatId)
-                && bindingContext.references.some(ref => ref.collectionId === `${kb.owner || getCharacterStableId()}_${kb.id}` && ref.hashes === null)))
+            && kb.memoryChatKey === bindingKey(bindingContext.owner, bindingContext.chatId)
+            && bindingContext.references.some(ref => ref.collectionId === `${kb.owner || getCharacterStableId()}_${kb.id}` && ref.hashes === null)
             && (!origin || (kb.memoryOrigin?.epoch || 'original') === origin.epoch));
 
         if (foundKb) {
@@ -687,7 +687,7 @@ function getKnowledgeBases() {
 function getChatMemoryBindingContext() {
     const live = SillyTavern.getContext();
     const owner = bindingOwner(live), chatId = getChatId();
-    return { owner, chatId, enabled: Boolean(settings.chatMemoryBindings.enabled),
+    return { owner, chatId,
         references: chatBindings(settings.chatMemoryBindings, owner, chatId) };
 }
 
@@ -712,7 +712,7 @@ function clearChatMemoryBindings(owner, chatId) {
 
 function bindingFingerprint() {
     const { owner, chatId } = getChatMemoryBindingContext();
-    return JSON.stringify([owner, chatId, settings.chatMemoryBindings, settings.retrieval.independentChatMemoryEnabled]);
+    return JSON.stringify([owner, chatId, chatBindings(settings.chatMemoryBindings, owner, chatId)]);
 }
 
 /** All retrieval paths use this resolver, including priority source groups. */
@@ -722,19 +722,8 @@ async function resolveRetrievalBases() {
         ...Object.values(getLocalKnowledgeBases()).filter(b => b.enabled).map(b => ({ ...b, scope: 'local', collectionId: `${charId}_${b.id}` })),
         ...Object.values(getGlobalKnowledgeBases()).filter(b => b.enabled).map(b => ({ ...b, scope: 'global', collectionId: `${b.owner || GLOBAL_SCOPE_ID}_${b.id}` })),
     ];
-    if (settings.chatMemoryBindings.enabled) {
-        const { owner, chatId } = getChatMemoryBindingContext();
-        return restrictBasesToChat(catalog, settings.chatMemoryBindings, owner, chatId);
-    }
-    if (settings.retrieval.independentChatMemoryEnabled) {
-        const chatId = getChatId();
-        const chat = chatId && !settings.memoryRecoveryApplied?.[charId]
-            ? [{ id: chatId, collectionId: chatId, name: `当前聊天 (${chatId})`, scope: 'chat', source: 'chat_history' }] : [];
-        return [...chat, ...catalog.filter(b => b.scope === 'global')];
-    }
-    if (catalog.length || settings.memoryRecoveryApplied?.[charId]) return catalog;
-    const collectionId = await getDynamicCollectionId();
-    return collectionId ? [{ id: null, collectionId, name: '旧版宝库 (Legacy)', scope: 'legacy' }] : [];
+    const { owner, chatId } = getChatMemoryBindingContext();
+    return restrictBasesToChat(catalog, settings.chatMemoryBindings, owner, chatId);
 }
 
 function addKnowledgeBase(name, source = 'manual') { 
@@ -755,12 +744,10 @@ function addKnowledgeBase(name, source = 'manual') {
     };
 
     bases[taskId] = newBase;
-    if (settings.chatMemoryBindings.enabled) {
-        const { owner, chatId } = getChatMemoryBindingContext();
-        if (owner && chatId) {
-            newBase.memoryChatKey = bindingKey(owner, chatId);
-            updateChatBindings(settings.chatMemoryBindings, owner, [chatId], [getMemoryBindingReference(taskId, 'local')]);
-        }
+    const { owner, chatId } = getChatMemoryBindingContext();
+    if (owner && chatId) {
+        newBase.memoryChatKey = bindingKey(owner, chatId);
+        updateChatBindings(settings.chatMemoryBindings, owner, [chatId], [getMemoryBindingReference(taskId, 'local')]);
     }
     saveSettings();
     
@@ -1027,14 +1014,6 @@ async function getVectorCount(taskId = null, scope = 'local') {
         return await countVectorsInCollection(collectionId);
 
     } else {
-        if (settings.retrieval.independentChatMemoryEnabled) {
-            const chatId = getChatId();
-            if (!chatId) return 0;
-            const totalCount = await countVectorsInCollection(chatId);
-            console.log(`[翰林院-日志] 独立聊天记忆模式开启，聊天 ${chatId} 的向量总数: ${totalCount}`);
-            return totalCount;
-        }
-
         console.log('[翰林院-日志] 开始获取所有知识库的向量总数...');
         const localBases = Object.values(getLocalKnowledgeBases());
         const globalBases = Object.values(getGlobalKnowledgeBases());

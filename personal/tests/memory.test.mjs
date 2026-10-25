@@ -268,14 +268,17 @@ test('restored knowledge state prevents legacy fallback and invalidates revised 
  const namesToExtract=['captureMemoryKnowledgeState','restoreMemoryKnowledgeState','memoryEpoch','queryVectors','resolveRetrievalBases'];
  const funcs=ast.body.map(n=>n.declaration||n).filter(n=>n.type==='FunctionDeclaration'&&namesToExtract.includes(n.id.name)).map(n=>source.slice(n.start,n.end)).join('\n');
  const bases={future:{id:'future',owner:'owner',source:'lorebook',name:'book: 大总结 91-180楼',enabled:true}},settings={retrieval:{independentChatMemoryEnabled:false},chatMemoryBindings:{enabled:false,chats:{}}};
+ const bindingUtils=await load(await read('personal/chat-memory-bindings.js'));
+ bindingUtils.updateChatBindings(settings.chatMemoryBindings,'owner',['chat'],[{collectionId:'owner_future',hashes:null}]);
  let legacyCalls=0,queried=[];
- const fixture={...recovery,settings,getKnowledgeBases:()=>bases,getLocalKnowledgeBases:()=>bases,getGlobalKnowledgeBases:()=>({}),getCharacterStableId:()=> 'owner',getChatId:()=> 'chat',saveSettings:()=>{},getDynamicCollectionId:async()=>{legacyCalls++;return 'legacy';},getEmbeddings:async()=>[[1]],_executeQueryForBase:async base=>{queried.push(base);return[]}};
+ const fixture={...recovery,...bindingUtils,settings,getChatMemoryBindingContext:()=>({owner:'owner',chatId:'chat'}),getKnowledgeBases:()=>bases,getLocalKnowledgeBases:()=>bases,getGlobalKnowledgeBases:()=>({}),getCharacterStableId:()=> 'owner',getChatId:()=> 'chat',saveSettings:()=>{},getDynamicCollectionId:async()=>{legacyCalls++;return 'legacy';},getEmbeddings:async()=>[[1]],_executeQueryForBase:async base=>{queried.push(base);return[]}};
  const keys=Object.keys(fixture);const api=new Function(...keys,funcs+';return {captureMemoryKnowledgeState,restoreMemoryKnowledgeState,memoryEpoch,queryVectors};')(...keys.map(key=>fixture[key]));
  const previousEpoch=api.memoryEpoch('book');const state=api.restoreMemoryKnowledgeState('book',null,90);
  assert.notEqual(api.memoryEpoch('book'),previousEpoch);assert.equal(bases.future.enabled,false);
  await api.queryVectors('test');assert.equal(legacyCalls,0);assert.equal(queried.length,0);
  settings.retrieval.independentChatMemoryEnabled=true;await api.queryVectors('test');assert.equal(queried.length,0);
  state.undo();assert.equal(bases.future.enabled,true);
+ await api.queryVectors('test');assert.equal(queried.length,1);assert.equal(legacyCalls,0);
 });
 
 test('summary branding preserves old books, progress and archive compatibility',async()=>{

@@ -100,7 +100,8 @@ export function organizeWorkspace(root) {
   // Advanced controls remain discoverable on their existing pages, closed initially.
   const sort = root.querySelector('#hly-super-sort-enabled')?.closest('.hly-control-block');
   fold(sort, '进阶排序');
-  fold(fieldset('hly-independent-chat-memory-enabled')?.querySelector('.hly-control-block:has(#hly-independent-chat-memory-enabled)'), '聊天记忆隔离', '开启后按聊天检索；已启用的全局库仍可共用。');
+  const oldIsolation = root.querySelector('#hly-independent-chat-memory-enabled')?.closest('.hly-control-block');
+  if (oldIsolation) oldIsolation.hidden = true; // Kept for legacy settings bindings; retrieval now always follows chat bindings.
   for (const [id,label] of [['hly-rerank-api-mode','重排序连接'],['hly-chunk-size','分块与检索参数'],['hly-query-preprocessing-enabled','检索内容处理'],['hly-injection-source-selector','注入位置与模板'],['hly-retrieval-notify','通知'],['amily2_keystore_mode','进阶：密钥存储']]) fold(fieldset(id),label);
   const priority = root.querySelector('#hly-rerank-tab > fieldset:last-of-type');
   if (priority && !priority.closest('details')) {
@@ -152,7 +153,7 @@ export function organizeWorkspace(root) {
     const character = local.querySelector('#hly-local-kb-char-name');
     local.querySelector('legend').replaceChildren(document.createTextNode('当前角色 · '),character);
     title(global,'全局共享');
-    for (const [section,help] of [[local,'只供当前角色检索。'],[global,'所有角色都能检索，适合共用设定。']]) {
+    for (const [section,help] of [[local,'供当前角色绑定到聊天，绑定后自动检索。'],[global,'可供所有角色绑定到聊天，适合共用设定。绑定后自动检索。']]) {
       const note=document.createElement('p');note.className='am-section-help';note.textContent=help;section.querySelector('legend').after(note);
     }
     root.querySelector('#hly-kb-list-local-placeholder').textContent='当前角色还没有知识库，先到“导入内容”添加。';
