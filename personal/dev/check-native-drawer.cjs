@@ -40,6 +40,14 @@ const native=JSON.parse(fs.readFileSync(process.env.ST_NATIVE_DRAWER_FIXTURE || 
   await p.locator('#WIDrawerIcon').click();await world.waitFor();await memory.waitFor({state:'hidden'});assert.equal(await trigger.getAttribute('aria-expanded'),'false');
   await trigger.click();await memory.waitFor();await p.locator('#settings-icon').click();await memory.waitFor({state:'hidden'});await p.locator('#test-native-settings').waitFor();
   await trigger.click();await memory.waitFor();await p.locator('#test-native-settings').waitFor({state:'hidden'});
+  if(await p.locator('.am-menu-toggle').getAttribute('aria-expanded')==='false')await p.locator('.am-menu-toggle').click();
+  await p.locator('#am-app-sidebar [data-route="floors"]').click();
+  const jump=p.locator('#amily2_jump_to_message_id');assert(await jump.isVisible());assert.equal(await jump.evaluate(n=>n.closest('[data-page]').dataset.page),'floors');assert.equal(await p.locator('#amily2_jump_to_message_id').count(),1);
+  await p.evaluate(()=>{for(const id of [11,12,13]){const n=document.createElement('div');n.className='mes';n.setAttribute('mesid',id);n.style.display='none';n.textContent='测试楼层 '+id;n.scrollIntoView=()=>n.dataset.jumpVisited='true';document.body.append(n);}});
+  await jump.fill('12');await p.locator('#amily2_jump_to_message_btn').click();assert.equal(await p.locator('.mes[mesid="12"]').getAttribute('data-jump-visited'),'true');assert(await p.locator('.mes[mesid="11"]').isVisible());
+  await p.evaluate(()=>document.querySelector('.mes[mesid="12"]').removeAttribute('data-jump-visited'));await jump.press('Enter');assert.equal(await p.locator('.mes[mesid="12"]').getAttribute('data-jump-visited'),'true');
+  if(await p.locator('.am-menu-toggle').getAttribute('aria-expanded')==='false')await p.locator('.am-menu-toggle').click();await p.locator('#am-app-sidebar [data-route="memory"]').click();
+  console.log(JSON.stringify({width,jumpEntry:true,clickJump:true,enterJump:true,hiddenContextRestored:true}));
   await p.locator('#amily2_mhb_small_start_floor').fill('15');await trigger.click();await memory.waitFor({state:'hidden'});await trigger.click();await memory.waitFor();assert.equal(await p.locator('#amily2_mhb_small_start_floor').inputValue(),'15');
   await p.mouse.click(width-1,840);await memory.waitFor({state:'hidden'});
   await trigger.focus();await p.keyboard.press('Enter');await memory.waitFor();await p.locator('.am-menu-toggle').focus();await p.keyboard.press('Escape');if(await memory.isVisible())await p.keyboard.press('Escape');await memory.waitFor({state:'hidden'});

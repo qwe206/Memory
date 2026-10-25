@@ -79,6 +79,21 @@ export function mountWorkspace(root) {
   const small = fieldset('amily2_mhb_small_editor');
   const large = fieldset('amily2_mhb_large_editor');
   move(floors, fieldset('amily2_auto_hide_enabled'), fieldset('amily2_manual_hide_from'));
+  const jumpInput = root.querySelector('#amily2_jump_to_message_id');
+  const jumpRow = jumpInput?.closest('.amily2_settings_block');
+  if (jumpRow) {
+    const jump = document.createElement('fieldset');
+    const legend = document.createElement('legend'); legend.textContent = '跳转楼层';
+    const label = document.createElement('label'); label.htmlFor = jumpInput.id; label.textContent = '目标楼层号';
+    jumpInput.min = '0'; jumpInput.step = '1';
+    const help = document.createElement('p'); help.className = 'notes';
+    help.textContent = '按酒馆显示的楼层编号输入，从 0 开始。';
+    jump.append(legend, label, jumpRow, help);
+    floors.querySelector('.am-route-heading').after(jump);
+    jumpInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); root.querySelector('#amily2_jump_to_message_btn')?.click(); }
+    });
+  }
   move(world, fieldset('amily2_target_main'));
   move(independent, fieldset('amily2_ngms_enabled'));
   move(archives, fieldset('amily2_mhb_archive_current'), root.querySelector('#amily2_personal_export_backups'));
