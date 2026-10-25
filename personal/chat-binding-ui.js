@@ -9,6 +9,50 @@ const button = (text, action) => {
   element.addEventListener('click', action); return element;
 };
 
+let managedOwner, actualChat, managedChat, chatListKey, chatRequest = 0;
+let refreshKnowledgeView = () => {};
+export function setKnowledgeViewRefresh(callback) { refreshKnowledgeView = callback; }
+
+export function getKnowledgeManagementContext() {
+  const current = Memory.getChatMemoryBindingContext();
+  if (managedOwner !== current.owner || actualChat !== current.chatId) {
+    managedOwner = current.owner; actualChat = current.chatId; managedChat = current.chatId;
+  }
+  return { ...Memory.getChatMemoryBindingContext(managedChat), actualChatId: actualChat };
+}
+
+function foldManagementControls(page) {
+  page.classList.remove('am-binding-picking');
+  const picker = page.querySelector('.am-binding-picker'); if (picker) picker.hidden = true;
+  const pick = page.querySelector('.am-binding-pick'); if (pick) pick.textContent = '选择记忆';
+  for (const input of page.querySelectorAll('.hly-kb-item-checkbox:checked')) {
+    input.checked = false; input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  for (const details of page.querySelectorAll('.am-binding-details,.am-kb-inactive')) details.open = false;
+}
+
+async function refreshManagementChats(panel, force = false) {
+  const view = getKnowledgeManagementContext(), key = JSON.stringify([view.owner, view.actualChatId]);
+  if (!force && chatListKey === key) return;
+  chatListKey = key;
+  const token = ++chatRequest, select = panel.querySelector('.am-management-chat-select');
+  const status = panel.querySelector('.am-management-chat-status'), refresh = panel.querySelector('.am-management-chat-refresh');
+  status.textContent = '正在读取聊天文件…'; refresh.disabled = true;
+  try {
+    const chats = await listBindingChats(SillyTavern.getContext(), view.actualChatId);
+    const live = getKnowledgeManagementContext();
+    if (!panel.isConnected || token !== chatRequest || live.owner !== view.owner || live.actualChatId !== view.actualChatId) return;
+    select.replaceChildren();
+    for (const name of [...new Set([live.chatId, ...chats].filter(Boolean))]) {
+      const option = document.createElement('option'); option.value = name;
+      option.textContent = name + (name === live.actualChatId ? '（当前打开）' : ''); select.append(option);
+    }
+    select.value = live.chatId; status.textContent = '';
+  } catch (error) {
+    if (token === chatRequest) status.textContent = `${error.message} 可点击“刷新”重试。`;
+  } finally { if (token === chatRequest) refresh.disabled = false; }
+}
+
 export function renderChatBindingPanel() {
   const page = document.querySelector('#hly-knowledge-bases-tab');
   if (!page) return;
@@ -18,6 +62,14 @@ export function renderChatBindingPanel() {
     const legend = document.createElement('legend'); legend.textContent = '聊天记忆绑定';
     panel.innerHTML = '<div class="am-binding-overview"><div><p class="am-binding-current"></p><p class="am-binding-count"></p></div><button type="button" class="am-binding-pick">选择记忆</button></div><p class="am-section-help">绑定后自动用于对应聊天；新聊天从空白记忆开始，新入库内容自动归入当前聊天。</p><div class="am-binding-picker" hidden><p class="am-section-help">在下方勾选知识库，可同时选择局部库和全局库。只要部分内容，请进入“查看分块”。</p><button type="button" class="am-binding-pick-save" disabled>绑定所选知识库</button><span class="am-binding-picked-count" role="status"></span></div><details class="am-binding-details"><summary>管理已绑定记忆</summary><div class="am-binding-list"></div><button type="button" class="am-binding-clear">解除当前聊天的全部绑定</button></details>';
     panel.prepend(legend); page.prepend(panel);
+    const chooser = document.createElement('div'); chooser.className = 'am-management-chat';
+    chooser.innerHTML = '<label for="am-management-chat-select">选择聊天文件</label><div class="am-management-chat-field"><select id="am-management-chat-select" class="am-management-chat-select"></select><button type="button" class="am-management-chat-refresh">刷新</button></div><p class="am-management-chat-status am-section-help" role="status"></p>';
+    legend.after(chooser);
+    chooser.querySelector('select').addEventListener('change', event => {
+      managedChat = event.target.value; foldManagementControls(page);
+      renderChatBindingPanel(); refreshKnowledgeView();
+    });
+    chooser.querySelector('button').addEventListener('click', () => refreshManagementChats(panel, true));
     panel.querySelector('.am-binding-pick').addEventListener('click', () => {
       const picking = page.classList.toggle('am-binding-picking');
       panel.querySelector('.am-binding-picker').hidden = !picking;
@@ -38,30 +90,41 @@ export function renderChatBindingPanel() {
       try { openChatBindingDialog(selectedReferences()); } catch (error) { notify.warning(error.message); }
     });
     panel.querySelector('.am-binding-clear').addEventListener('click', () => {
-      const current = Memory.getChatMemoryBindingContext();
+      const current = getKnowledgeManagementContext();
       if (!pluginAuthStatus.authorized || !current.chatId || !current.owner) return;
-      Memory.clearChatMemoryBindings(current.owner, current.chatId); renderChatBindingPanel();
-      notify.success('已解除当前聊天的全部绑定，原向量数据保留。');
+      Memory.clearChatMemoryBindings(current.owner, current.chatId); renderChatBindingPanel(); refreshKnowledgeView();
+      notify.success('已解除所选聊天的全部绑定，原向量数据保留。');
     });
     const ctx = SillyTavern.getContext();
-    const changed = () => { if (panel.isConnected) renderChatBindingPanel(); };
+    const changed = () => { if (panel.isConnected) { renderChatBindingPanel(); refreshKnowledgeView(); } };
     ctx.eventSource?.on(ctx.eventTypes?.CHAT_CHANGED || 'chat_id_changed', changed);
   }
-  const current = Memory.getChatMemoryBindingContext();
+  const current = getKnowledgeManagementContext();
+  const viewKey = JSON.stringify([current.owner, current.actualChatId, current.chatId]);
+  if (panel.dataset.viewKey !== viewKey) { foldManagementControls(page); panel.dataset.viewKey = viewKey; }
+  const selector = panel.querySelector('.am-management-chat-select');
+  if (![...selector.options].some(option => option.value === current.chatId)) {
+    const option = document.createElement('option'); option.value = current.chatId || ''; option.textContent = current.chatId || '请先打开聊天'; selector.replaceChildren(option);
+  }
+  selector.value = current.chatId || ''; selector.disabled = !current.owner || !current.chatId;
+  if (current.owner && current.actualChatId) refreshManagementChats(panel);
   const heading = page.querySelector(':scope > .am-vector-title');
   if (heading) heading.after(panel);
-  panel.querySelector('.am-binding-count').textContent = current.references.length ? '已绑定 ' + current.references.length + ' 个知识库 · 自动生效' : '尚未绑定记忆';
+  const pausedCount = current.references.filter(ref => ref.enabled === false).length;
+  panel.querySelector('.am-binding-count').textContent = current.references.length
+    ? '已绑定 ' + current.references.length + ' 个知识库 · ' + (pausedCount ? pausedCount + ' 个在此聊天停用' : '自动生效') : '尚未绑定记忆';
   panel.querySelector('.am-binding-pick').disabled = !current.owner || !current.chatId;
-  panel.querySelector('.am-binding-current').textContent = current.chatId ? `当前聊天：${current.chatId}` : '请先打开一个聊天。';
+  panel.querySelector('.am-binding-current').textContent = current.chatId === current.actualChatId ? '正在管理当前打开的聊天' : '仅切换管理视图，实际聊天未改变';
+  panel.querySelector('.am-binding-clear').textContent = '解除所选聊天的全部绑定';
   const list = panel.querySelector('.am-binding-list'); list.replaceChildren();
   for (const ref of current.references) {
     const row = document.createElement('div'); row.className = 'am-binding-row';
-    const name = document.createElement('span'); name.textContent = `${ref.name} · ${ref.hashes === null ? '整个知识库' : `${ref.hashes.length} 个分块`}`;
+    const name = document.createElement('span'); name.textContent = `${ref.name} · ${ref.hashes === null ? '整个知识库' : `${ref.hashes.length} 个分块`}${ref.enabled === false ? ' · 此聊天已停用' : ''}`;
     row.append(name, button('解除绑定', () => {
       if (!pluginAuthStatus.authorized) return;
       try {
         Memory.saveChatMemoryBindings(current.owner, [current.chatId], [{ ...ref, hashes: null }], true);
-        renderChatBindingPanel();
+        renderChatBindingPanel(); refreshKnowledgeView();
       } catch (error) { notify.warning(error.message); }
     })); list.append(row);
   }
@@ -96,7 +159,7 @@ export async function openChatBindingDialog(references) {
   dialog.addEventListener('close', () => { controller.abort(); dialog.remove(); });
   dialog.querySelector('.am-binding-close').addEventListener('click', () => dialog.close());
   dialog.showModal();
-  const selected = new Set([captured.chatId]), status = dialog.querySelector('.am-binding-status');
+  const selected = new Set([getKnowledgeManagementContext().chatId || captured.chatId]), status = dialog.querySelector('.am-binding-status');
   const save = dialog.querySelector('.am-binding-save'), remove = dialog.querySelector('.am-binding-remove');
   const search = dialog.querySelector('input[type="search"]');
   let chats = [];
@@ -136,7 +199,7 @@ export async function openChatBindingDialog(references) {
           input.checked = false; input.dispatchEvent(new Event('change', { bubbles: true }));
         }
       }
-      renderChatBindingPanel(); dialog.close();
+      renderChatBindingPanel(); refreshKnowledgeView(); dialog.close();
       notify.success(`已${unbind ? '解除' : '保存'} ${selected.size} 个聊天的记忆绑定。`);
     } catch (error) { status.textContent = error.message; }
   });

@@ -124,3 +124,27 @@ test('saved bindings always apply even when the old opt-in flag was off', async 
   assert.deepEqual((await h.api.resolveRetrievalBases()).map(b => b.collectionId), ['char_a']);
   h.changeChat('fresh'); assert.deepEqual(await h.api.resolveRetrievalBases(), []);
 });
+
+test('per-chat activation preserves selected blocks and never changes other chat bindings', () => {
+  const state = { chats: {} }, ref = { collectionId: 'shared', name: '共享设定', hashes: ['7', '8'] };
+  bindings.updateChatBindings(state, 'a', ['one', 'two'], [ref]);
+  bindings.setChatBindingEnabled(state, 'a', 'two', { ...ref, hashes: null }, false);
+  const base = { collectionId: 'shared' };
+  assert.equal(bindings.restrictBasesToChat([base], state, 'a', 'one').length, 1);
+  assert.equal(bindings.restrictBasesToChat([base], state, 'a', 'two').length, 0);
+  assert.deepEqual(bindings.chatBindings(state, 'a', 'two')[0].hashes, ['7', '8']);
+  assert.equal(bindings.knowledgeBindingState(state, 'a', 'two', 'shared', true).label, '此聊天已停用');
+  bindings.setChatBindingEnabled(state, 'a', 'two', { ...ref, hashes: null }, true);
+  assert.equal(bindings.restrictBasesToChat([base], state, 'a', 'two').length, 1);
+  assert.deepEqual(bindings.chatBindings(state, 'a', 'two')[0].hashes, ['7', '8']);
+});
+
+test('management distinguishes unbound, other-chat, paused and active libraries', () => {
+  const state = { chats: {} };
+  bindings.setChatBindingEnabled(state, 'a', 'one', { collectionId: 'kb', hashes: null }, true);
+  assert.equal(bindings.knowledgeBindingState(state, 'a', 'one', 'kb', true).active, true);
+  assert.equal(bindings.knowledgeBindingState(state, 'a', 'one', 'kb', false).active, false);
+  assert.equal(bindings.knowledgeBindingState(state, 'a', 'two', 'kb', true).label, '已绑定其他聊天');
+  assert.equal(bindings.knowledgeBindingState(state, 'a', 'two', 'new', true).label, '尚未绑定聊天');
+  assert.deepEqual(bindings.chatBindings(state, 'a', 'two'), [], 'viewing another file cannot create bindings');
+});

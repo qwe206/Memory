@@ -46,6 +46,14 @@ dialog.am-chat-binding-dialog footer { flex-wrap: wrap; }
 #amily2_chat_optimiser.am-workspace .am-binding-overview p { margin: 0; overflow-wrap: anywhere; }
 #amily2_chat_optimiser.am-workspace .am-binding-count { color: var(--am-muted); margin-top: 4px !important; }
 #amily2_chat_optimiser.am-workspace .am-binding-pick { flex-shrink: 0; }
+#amily2_chat_optimiser.am-workspace .am-management-chat { margin-bottom: 16px; }
+#amily2_chat_optimiser.am-workspace .am-management-chat > label { display: block; margin-bottom: 6px; }
+#amily2_chat_optimiser.am-workspace .am-management-chat-field { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; }
+#amily2_chat_optimiser.am-workspace .am-management-chat-select { min-width: 0; width: 100%; }
+#amily2_chat_optimiser.am-workspace .am-management-chat-status:empty { display: none; }
+#amily2_chat_optimiser.am-workspace .am-kb-inactive { border-top: 1px solid var(--am-line); margin-top: 12px; }
+#amily2_chat_optimiser.am-workspace .am-kb-inactive > summary { padding-block: 12px; min-height: 44px; }
+#amily2_chat_optimiser.am-workspace .am-kb-chat-state { color: var(--am-muted); font-size: 12px !important; margin: 4px 0 0; }
 #amily2_chat_optimiser.am-workspace .am-binding-details > summary { min-height: 44px; display: list-item; padding-block: 10px; }
 #amily2_chat_optimiser.am-workspace .am-binding-picker:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-block: 12px; border-block: 1px solid var(--am-line); }
 #amily2_chat_optimiser.am-workspace .am-binding-picker p { flex-basis: 100%; margin: 0; }

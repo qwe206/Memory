@@ -56,9 +56,26 @@ export function restrictBasesToChat(bases, state, owner, chatId) {
   const refs = new Map(chatBindings(state, owner, chatId).map(ref => [ref.collectionId, ref]));
   return bases.flatMap(base => {
     const ref = refs.get(base.collectionId);
-    return ref && (ref.hashes === null || ref.hashes?.length)
+    return ref && ref.enabled !== false && (ref.hashes === null || ref.hashes?.length)
       ? [{ ...base, boundHashes: ref.hashes }] : [];
   });
+}
+
+export function knowledgeBindingState(state, owner, chatId, collectionId, libraryEnabled) {
+  const reference = chatBindings(state, owner, chatId).find(ref => ref.collectionId === collectionId);
+  const boundElsewhere = Object.entries(state?.chats || {}).some(([key, refs]) =>
+    key !== bindingKey(owner, chatId) && refs.some(ref => ref.collectionId === collectionId));
+  return { reference, active: Boolean(reference && reference.enabled !== false && libraryEnabled),
+    label: reference ? (!libraryEnabled ? '知识库已停用' : reference.enabled === false ? '此聊天已停用' : '此聊天已启用')
+      : boundElsewhere ? '已绑定其他聊天' : '尚未绑定聊天' };
+}
+
+export function setChatBindingEnabled(state, owner, chatId, reference, enabled) {
+  const existing = chatBindings(state, owner, chatId).find(ref => ref.collectionId === reference.collectionId);
+  if (!existing && !enabled) return;
+  if (!existing) updateChatBindings(state, owner, [chatId], [reference]);
+  const saved = chatBindings(state, owner, chatId).find(ref => ref.collectionId === reference.collectionId);
+  saved.enabled = Boolean(enabled);
 }
 
 export function filterBoundChunks(rows, hashes, limit) {
