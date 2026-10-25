@@ -10,6 +10,7 @@ import { organizeWorkspace } from './organize.js';
 
 let workspace;
 export function openMemoryWorkspace() { workspace?.open(); }
+export function closeMemoryWorkspace(restoreFocus = false) { workspace?.close(restoreFocus); }
 
 /** Reparent existing controls inside their original module, retaining delegated handlers. */
 export function mountWorkspace(root) {

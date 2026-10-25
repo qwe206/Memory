@@ -75,6 +75,7 @@
 .am-workspace .am-floor-jump-input input { flex: 1 1 0; min-width: 0; }
 .am-workspace #amily2_jump_to_message_btn { flex: 1 1 140px; }
 .am-workspace .am-floor-jump-status:empty { display: none; }
+#chat .mes.am-floor-jump-target { outline: 2px solid var(--SmartThemeQuoteColor, currentColor); outline-offset: -2px; }
 .am-workspace { scrollbar-color: var(--am-line) var(--am-bg); caret-color: var(--am-accent); }
 @media (min-width: 860px) {
   #amily2_chat_optimiser.am-workspace.am-sidebar-open { grid-template-columns: 260px minmax(0,1fr); }
