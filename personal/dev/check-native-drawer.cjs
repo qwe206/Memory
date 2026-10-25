@@ -43,7 +43,7 @@ const native=JSON.parse(fs.readFileSync(process.env.ST_NATIVE_DRAWER_FIXTURE || 
   if(await p.locator('.am-menu-toggle').getAttribute('aria-expanded')==='false')await p.locator('.am-menu-toggle').click();
   await p.locator('#am-app-sidebar [data-route="floors"]').click();
   const jump=p.locator('#amily2_jump_to_message_id');assert(await jump.isVisible());assert.equal(await jump.evaluate(n=>n.closest('[data-page]').dataset.page),'floors');assert.equal(await p.locator('#amily2_jump_to_message_id').count(),1);
-  await p.evaluate(()=>{for(const id of [11,12,13]){const n=document.createElement('div');n.className='mes';n.setAttribute('mesid',id);n.style.display='none';n.textContent='测试楼层 '+id;n.scrollIntoView=()=>n.dataset.jumpVisited='true';document.body.append(n);}});
+  await p.evaluate(()=>{const chat=document.createElement('div');chat.id='chat';document.body.append(chat);for(const id of [11,12,13]){const n=document.createElement('div');n.className='mes';n.setAttribute('mesid',id);n.style.display='none';n.textContent='测试楼层 '+id;n.scrollIntoView=()=>n.dataset.jumpVisited='true';chat.append(n);}});
   await jump.fill('12');await p.locator('#amily2_jump_to_message_btn').click();assert.equal(await p.locator('.mes[mesid="12"]').getAttribute('data-jump-visited'),'true');assert(await p.locator('.mes[mesid="11"]').isVisible());
   await p.evaluate(()=>document.querySelector('.mes[mesid="12"]').removeAttribute('data-jump-visited'));await jump.press('Enter');assert.equal(await p.locator('.mes[mesid="12"]').getAttribute('data-jump-visited'),'true');
   if(await p.locator('.am-menu-toggle').getAttribute('aria-expanded')==='false')await p.locator('.am-menu-toggle').click();await p.locator('#am-app-sidebar [data-route="memory"]').click();

@@ -69,6 +69,12 @@
 .am-workspace .am-route-pane > fieldset > legend { font-size: 16px !important; }
 .am-workspace .am-route-pane .manual-command-block input { max-width: 100%; }
 .am-workspace ::selection { background: var(--am-soft); color: var(--am-ink); }
+.am-workspace .am-floor-jump-row { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 10px; }
+.am-workspace .am-floor-jump-input { display: flex; align-items: center; gap: 8px; flex: 1 1 120px; min-width: 0; }
+.am-workspace .am-floor-jump-prefix { flex: 0 0 auto; color: var(--am-ink); font-size: 16px; line-height: 1; }
+.am-workspace .am-floor-jump-input input { flex: 1 1 0; min-width: 0; }
+.am-workspace #amily2_jump_to_message_btn { flex: 1 1 140px; }
+.am-workspace .am-floor-jump-status:empty { display: none; }
 .am-workspace { scrollbar-color: var(--am-line) var(--am-bg); caret-color: var(--am-accent); }
 @media (min-width: 860px) {
   #amily2_chat_optimiser.am-workspace.am-sidebar-open { grid-template-columns: 260px minmax(0,1fr); }

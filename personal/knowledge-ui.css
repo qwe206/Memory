@@ -37,11 +37,22 @@ dialog.am-chunk-viewer .am-chunk-selection { display: flex; align-items: center;
 dialog.am-chat-binding-dialog .am-binding-chat-list { overflow: auto; min-height: 0; }
 dialog.am-chat-binding-dialog .am-binding-chat { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--am-line); cursor: pointer; }
 dialog.am-chat-binding-dialog .am-binding-chat span { overflow-wrap: anywhere; min-width: 0; }
-:is(dialog.am-chat-binding-dialog, #amily2_chat_optimiser.am-workspace) .am-binding-switch { display: flex; align-items: center; gap: 10px; }
 #amily2_chat_optimiser.am-workspace .am-binding-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--am-line); }
 #amily2_chat_optimiser.am-workspace .am-binding-row span { overflow-wrap: anywhere; min-width: 0; }
 #amily2_chat_optimiser.am-workspace .am-binding-row button { flex-shrink: 0; }
 dialog.am-chat-binding-dialog footer { flex-wrap: wrap; }
+#amily2_chat_optimiser.am-workspace .am-binding-overview { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+#amily2_chat_optimiser.am-workspace .am-binding-overview > div { min-width: 0; }
+#amily2_chat_optimiser.am-workspace .am-binding-overview p { margin: 0; overflow-wrap: anywhere; }
+#amily2_chat_optimiser.am-workspace .am-binding-count { color: var(--am-muted); margin-top: 4px !important; }
+#amily2_chat_optimiser.am-workspace .am-binding-pick { flex-shrink: 0; }
+#amily2_chat_optimiser.am-workspace .am-binding-details > summary { min-height: 44px; display: list-item; padding-block: 10px; }
+#amily2_chat_optimiser.am-workspace .am-binding-picker:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-block: 12px; border-block: 1px solid var(--am-line); }
+#amily2_chat_optimiser.am-workspace .am-binding-picker p { flex-basis: 100%; margin: 0; }
+#amily2_chat_optimiser.am-workspace #hly-knowledge-bases-tab:not(.am-binding-picking) :is(.hly-kb-toolbar,.hly-kb-item-checkbox) { display: none; }
+dialog.am-chunk-viewer .am-chunk-selection[hidden] { display: none; }
+dialog.am-chunk-viewer:not(.am-selecting-chunks) .am-chunk-choice { display: none; }
+dialog.am-chunk-viewer:not(.am-selecting-chunks) .am-chunk-selectable { grid-template-columns: minmax(0,1fr); }
 dialog.am-chunk-viewer .am-chunk-search-label { display: grid; gap: 6px; }
 dialog.am-chunk-viewer .am-chunk-duplicates { display: flex; align-items: center; gap: 8px; }
 dialog.am-chunk-viewer .am-chunk-duplicate-note { display: block; color: var(--am-accent); overflow-wrap: anywhere; font-weight: 600; }

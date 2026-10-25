@@ -26,8 +26,15 @@ export async function openChunkViewer(id, scope, name) {
   dialog.querySelector('.am-chunk-grid').before(duplicateFilter);
   const duplicateOnly=duplicateFilter.querySelector('input');duplicateOnly.disabled=true;
   const toolbar = document.createElement('div'); toolbar.className = 'am-chunk-selection';
+  toolbar.hidden = true;
   toolbar.innerHTML = '<button type="button" class="am-chunk-select-filtered" disabled>选择全部匹配块</button><button type="button" class="am-chunk-clear-selection" disabled>清除选择</button><span class="am-chunk-selected-count" role="status">已选 0 块</span><button type="button" class="am-chunk-bind" disabled>绑定聊天</button>';
   dialog.querySelector('.am-chunk-grid').before(toolbar);
+  const choose = document.createElement('button'); choose.type = 'button'; choose.className = 'am-chunk-choose'; choose.textContent = '选择分块';
+  toolbar.before(choose);
+  choose.addEventListener('click', () => {
+    const selecting = dialog.classList.toggle('am-selecting-chunks');
+    toolbar.hidden = !selecting; choose.textContent = selecting ? '退出多选' : '选择分块';
+  });
   const selected = new Set();
   const bind = toolbar.querySelector('.am-chunk-bind'), clear = toolbar.querySelector('.am-chunk-clear-selection');
   const selectFiltered = toolbar.querySelector('.am-chunk-select-filtered');
