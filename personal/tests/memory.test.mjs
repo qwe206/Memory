@@ -265,9 +265,9 @@ test('real auto-hide module restores both directions and resolves new summary bo
 
 test('restored knowledge state prevents legacy fallback and invalidates revised collections',async()=>{
  const source=await read('core/rag-processor.js'),ast=parse(source,{ecmaVersion:'latest',sourceType:'module'});
- const namesToExtract=['captureMemoryKnowledgeState','restoreMemoryKnowledgeState','memoryEpoch','queryVectors'];
+ const namesToExtract=['captureMemoryKnowledgeState','restoreMemoryKnowledgeState','memoryEpoch','queryVectors','resolveRetrievalBases'];
  const funcs=ast.body.map(n=>n.declaration||n).filter(n=>n.type==='FunctionDeclaration'&&namesToExtract.includes(n.id.name)).map(n=>source.slice(n.start,n.end)).join('\n');
- const bases={future:{id:'future',owner:'owner',source:'lorebook',name:'book: 大总结 91-180楼',enabled:true}},settings={retrieval:{independentChatMemoryEnabled:false}};
+ const bases={future:{id:'future',owner:'owner',source:'lorebook',name:'book: 大总结 91-180楼',enabled:true}},settings={retrieval:{independentChatMemoryEnabled:false},chatMemoryBindings:{enabled:false,chats:{}}};
  let legacyCalls=0,queried=[];
  const fixture={...recovery,settings,getKnowledgeBases:()=>bases,getLocalKnowledgeBases:()=>bases,getGlobalKnowledgeBases:()=>({}),getCharacterStableId:()=> 'owner',getChatId:()=> 'chat',saveSettings:()=>{},getDynamicCollectionId:async()=>{legacyCalls++;return 'legacy';},getEmbeddings:async()=>[[1]],_executeQueryForBase:async base=>{queried.push(base);return[]}};
  const keys=Object.keys(fixture);const api=new Function(...keys,funcs+';return {captureMemoryKnowledgeState,restoreMemoryKnowledgeState,memoryEpoch,queryVectors};')(...keys.map(key=>fixture[key]));
