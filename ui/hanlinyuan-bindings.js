@@ -10,7 +10,7 @@ import * as ContextUtils from '../core/utils/context-utils.js';
 import * as IngestionManager from '../core/ingestion-manager.js';
 import { showHtmlModal } from './page-window.js';
 import { openChunkViewer } from '../personal/chunk-viewer.js';
-import { openChatBindingDialog, renderChatBindingPanel } from '../personal/chat-binding-ui.js';
+import { openChatBindingDialog, renderChatBindingPanel, getKnowledgeManagementContext, setKnowledgeViewRefresh } from '../personal/chat-binding-ui.js';
 import { extractBlocksByTags, applyExclusionRules } from '../core/utils/rag-tag-extractor.js';
 import {
     filterWorldbooks,
@@ -129,6 +129,7 @@ export function bindHanlinyuanEvents() {
         return;
     }
 
+    setKnowledgeViewRefresh(renderKnowledgeBases);
     loadSettingsToUI();
     loadWorldbookList(); // 【新增】加载书库列表
     log('[翰林院-枢纽] 已成功连接各部，政令畅通。', 'info');
@@ -861,9 +862,10 @@ async function renderKnowledgeBases() {
         const globalKbs = HanlinyuanCore.getGlobalKnowledgeBases();
 
         // 渲染局部知识库
-        await _renderKbList(localKbs, localContainer, 'local', 'hly-kb-list-local-placeholder');
-        // 渲染全局知识库
-        await _renderKbList(globalKbs, globalContainer, 'global', 'hly-kb-list-global-placeholder');
+        await Promise.all([
+            _renderKbList(localKbs, localContainer, 'local', 'hly-kb-list-local-placeholder'),
+            _renderKbList(globalKbs, globalContainer, 'global', 'hly-kb-list-global-placeholder'),
+        ]);
 
     } catch (error) {
         console.error('[翰林院-枢纽] 渲染知识库列表失败:', error);
@@ -874,97 +876,45 @@ async function renderKnowledgeBases() {
 
 
 async function _renderKbList(kbs, container, scope, placeholderId) {
-    const renderToken = (container.kbRenderToken || 0) + 1;
-    container.kbRenderToken = renderToken;
+    const renderToken = (container.kbRenderToken || 0) + 1; container.kbRenderToken = renderToken;
+    const view = getKnowledgeManagementContext(), viewKey = JSON.stringify([view.owner, view.chatId]);
+    const wasOpen = container.dataset.viewKey === viewKey && container.querySelector('.am-kb-inactive')?.open;
+    container.dataset.viewKey = viewKey;
     const placeholder = document.getElementById(placeholderId);
-    container.innerHTML = ''; // 清空
-    container.appendChild(placeholder); // 先把占位符加回去
-    const selectAll = document.getElementById(`hly-kb-select-all-${scope}`);
-    selectAll.checked = false;
-    selectAll.disabled = Object.keys(kbs).length === 0;
+    container.replaceChildren(placeholder);
+    const selectAll = document.getElementById('hly-kb-select-all-' + scope);
+    selectAll.checked = false; selectAll.indeterminate = false; selectAll.disabled = Object.keys(kbs).length === 0;
     selectAll.closest('.hly-kb-toolbar').hidden = selectAll.disabled;
-    document.getElementById(`hly-kb-bulk-actions-${scope}`).style.display = 'none';
-
-    if (Object.keys(kbs).length === 0) {
-        placeholder.style.display = 'block';
-        return;
-    }
-
-    placeholder.style.display = 'none';
-
-    // 分组逻辑：找出自动凝识的记录
-    const autoCondenseGroup = [];
-    const otherKbs = [];
-
+    document.getElementById('hly-kb-bulk-actions-' + scope).style.display = 'none';
+    const active = [], inactive = [];
     for (const [id, kb] of Object.entries(kbs)) {
-        if (kb.name && kb.name.includes(': 自动凝识 (')) {
-            autoCondenseGroup.push({ id, ...kb });
-        } else {
-            otherKbs.push({ id, ...kb });
-        }
+        const state = HanlinyuanCore.getKnowledgeBindingState(id, scope, view.chatId);
+        const row = _createKbItemElement(id, kb, scope, '…', state);
+        (state.active ? active : inactive).push({ id, row });
     }
-
-    // 渲染自动凝识分组（如果有）
-    if (autoCondenseGroup.length > 0) {
-        const groupItem = document.createElement('div');
-        groupItem.className = 'hly-kb-group-item';
-
-        // 计算组内总向量数和启用状态
-        let totalVectors = 0;
-        let allEnabled = true;
-
-        // 预先获取所有向量数（并行）
-        const countPromises = autoCondenseGroup.map(kb => HanlinyuanCore.getVectorCount(kb.id, scope));
-        const counts = await Promise.all(countPromises);
-        if (container.kbRenderToken !== renderToken) return;
-
-        autoCondenseGroup.forEach((kb, index) => {
-            kb.vectorCount = counts[index];
-            totalVectors += counts[index];
-            if (!kb.enabled) allEnabled = false;
-        });
-
-        // 排序：按楼层顺序 (假设名字里有数字)
-        autoCondenseGroup.sort((a, b) => {
-            const matchA = a.name.match(/\((\d+)-/);
-            const matchB = b.name.match(/\((\d+)-/);
-            if (matchA && matchB) {
-                return parseInt(matchA[1]) - parseInt(matchB[1]);
-            }
-            return a.name.localeCompare(b.name);
-        });
-
-        const groupHtml = `
-            <details class="hly-kb-group-details">
-                <summary class="hly-kb-group-summary">
-                    <span class="hly-kb-group-title"><i class="fas fa-folder"></i> 自动凝识记录 (${autoCondenseGroup.length}个片段, 共${totalVectors}条)</span>
-                </summary>
-                <div class="hly-kb-group-content">
-                    <!-- 子项目将在这里渲染 -->
-                </div>
-            </details>
-        `;
-        groupItem.innerHTML = groupHtml;
-        container.appendChild(groupItem);
-
-        const groupContent = groupItem.querySelector('.hly-kb-group-content');
-
-        for (const kb of autoCondenseGroup) {
-            const item = _createKbItemElement(kb.id, kb, scope, kb.vectorCount);
-            groupContent.appendChild(item);
-        }
+    placeholder.textContent = Object.keys(kbs).length ? '所选聊天暂无已激活的' + (scope === 'global' ? '全局知识库。' : '角色知识库。') : '这里还没有知识库。';
+    placeholder.style.display = active.length ? 'none' : 'block';
+    container.append(...active.map(entry => entry.row));
+    if (inactive.length) {
+        const details = document.createElement('details'); details.className = 'am-kb-inactive'; details.open = Boolean(wasOpen);
+        const summary = document.createElement('summary'); summary.textContent = '未激活的知识库（' + inactive.length + '）';
+        const note = document.createElement('p'); note.className = 'am-section-help'; note.textContent = '包含未绑定、已停用及其他聊天使用的记忆。展开后可绑定或启用，不会自动带入所选聊天。';
+        details.append(summary, note, ...inactive.map(entry => entry.row)); container.append(details);
     }
-
-    // 渲染其他普通知识库
-    for (const kb of otherKbs) {
-        const vectorCount = await HanlinyuanCore.getVectorCount(kb.id, scope);
+    // Render the management view immediately, then read counts with bounded concurrency.
+    const entries = [...active, ...inactive];
+    for (let offset = 0; offset < entries.length; offset += 8) {
         if (container.kbRenderToken !== renderToken) return;
-        const item = _createKbItemElement(kb.id, kb, scope, vectorCount);
-        container.appendChild(item);
+        await Promise.all(entries.slice(offset, offset + 8).map(async ({ id, row }) => {
+            const count = await HanlinyuanCore.getVectorCount(id, scope);
+            const live = getKnowledgeManagementContext();
+            if (container.kbRenderToken !== renderToken || live.owner !== view.owner || live.chatId !== view.chatId) return;
+            const label = row.querySelector('.am-kb-count'); label.textContent = label.textContent.replace('… 个分块', count + ' 个分块');
+        }));
     }
 }
 
-function _createKbItemElement(id, kb, scope, vectorCount) {
+function _createKbItemElement(id, kb, scope, vectorCount, bindingState) {
     const item = document.createElement('div');
     item.className = 'hly-kb-list-item';
     item.dataset.kbId = id;
@@ -979,10 +929,11 @@ function _createKbItemElement(id, kb, scope, vectorCount) {
         <div class="hly-kb-actions">
             <button type="button" class="am-kb-chunks">查看分块</button>
             <label class="am-kb-enabled">
-                <input type="checkbox" class="hly-kb-toggle"><span>参与检索</span>
+                <input type="checkbox" class="hly-kb-toggle"><span>用于此聊天</span>
             </label>
             <details class="am-kb-more"><summary>更多操作</summary><div>
               <button type="button" class="am-kb-bind">绑定聊天</button>
+              <button type="button" class="am-kb-library-toggle"></button>
               <button type="button" class="hly-kb-move-btn"></button>
               <button type="button" class="hly-kb-rename-btn">重命名</button>
               <button type="button" class="hly-kb-delete-btn">删除知识库</button>
@@ -992,8 +943,15 @@ function _createKbItemElement(id, kb, scope, vectorCount) {
     item.querySelector('.hly-kb-name').textContent = kb.name;
     item.querySelector('.am-kb-count').textContent = `${vectorCount} 个分块 · ${scope === 'local' ? '仅当前角色使用' : '所有角色可用'}`;
     if (!kb.enabled && kb.memoryRestoreNote) item.querySelector('.am-kb-count').textContent += ` · 已因回溯停用：${kb.memoryRestoreNote}`;
+    const state = document.createElement('p'); state.className = 'am-kb-chat-state'; state.textContent = bindingState.label;
+    item.querySelector('.am-kb-count').after(state);
     const select = item.querySelector('.hly-kb-item-checkbox'); select.dataset.kbId = id; select.setAttribute('aria-label', `选择知识库：${kb.name}`);
-    item.querySelector('.hly-kb-toggle').checked = Boolean(kb.enabled);
+    item.querySelector('.hly-kb-toggle').checked = bindingState.active;
+    item.querySelector('.hly-kb-toggle').disabled = !kb.enabled || !getKnowledgeManagementContext().chatId;
+    item.querySelector('.hly-kb-toggle').setAttribute('aria-label', `${kb.name}：在所选聊天启用`);
+    const libraryToggle = item.querySelector('.am-kb-library-toggle');
+    libraryToggle.textContent = kb.enabled ? '整体停用知识库' : '恢复知识库';
+    libraryToggle.title = '影响所有绑定此知识库的聊天';
     item.querySelector('.hly-kb-move-btn').textContent = scope === 'local' ? '设为全局共享' : '移到当前角色';
     return item;
 }
@@ -1006,6 +964,9 @@ async function handleKbAction(event) {
     const kbId = listItem.dataset.kbId;
     const scope = listItem.dataset.kbScope;
     const kbName = listItem.dataset.kbName;
+    if (target.closest('.am-kb-library-toggle') && event.type === 'click') {
+        HanlinyuanCore.toggleKnowledgeBase(kbId, scope); await renderKnowledgeBases(); return;
+    }
     if (target.closest('.am-kb-bind') && event.type === 'click') {
         openChatBindingDialog([HanlinyuanCore.getMemoryBindingReference(kbId, scope)]); return;
     }
@@ -1063,7 +1024,9 @@ async function handleKbAction(event) {
     // 启用/禁用操作
     if (target.classList.contains('hly-kb-toggle') && event.type === 'change') {
         try {
-            await HanlinyuanCore.toggleKnowledgeBase(kbId, scope);
+            const view = getKnowledgeManagementContext();
+            HanlinyuanCore.setKnowledgeBindingEnabled(view.owner, view.chatId, kbId, scope, target.checked);
+            await renderKnowledgeBases();
             log(`知识库 ${kbName} 的状态已切换`, 'success');
             // 只更新UI，不完全重载，避免勾选状态丢失
             // await updatePanelStatus(); 
@@ -1150,8 +1113,10 @@ async function handleBulkAction(event, scope) {
             successMessage = `成功移动了 ${selectedIds.length} 个知识库。`;
             break;
         case 'toggle':
-            confirmMessage = `您确定要切换选中的 ${selectedIds.length} 个知识库的启用状态吗？`;
-            actionFunction = (id) => HanlinyuanCore.toggleKnowledgeBase(id, scope);
+            const view = getKnowledgeManagementContext();
+            confirmMessage = `切换选中知识库在聊天【${view.chatId}】中的启用状态？其他聊天不受影响。`;
+            actionFunction = (id) => HanlinyuanCore.setKnowledgeBindingEnabled(view.owner, view.chatId, id, scope,
+                !HanlinyuanCore.getKnowledgeBindingState(id, scope, view.chatId).active);
             successMessage = `成功切换了 ${selectedIds.length} 个知识库的状态。`;
             break;
         default:

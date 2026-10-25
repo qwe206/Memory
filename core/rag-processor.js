@@ -22,7 +22,7 @@ import {
 } from './rag-api.js';
 import { superSort } from './super-sorter.js';
 import { readVectorChunks } from '../personal/vector-reader.js';
-import { bindingOwner, bindingKey, chatBindings, updateChatBindings, restrictBasesToChat, filterBoundChunks } from '../personal/chat-memory-bindings.js';
+import { bindingOwner, bindingKey, chatBindings, updateChatBindings, restrictBasesToChat, filterBoundChunks, knowledgeBindingState, setChatBindingEnabled } from '../personal/chat-memory-bindings.js';
 import { writeUniqueVectorChunks } from '../personal/vector-writes.js';
 import { migrateRagPrompts } from '../personal/prompt-style.js';
 import { captureKnowledgeState, knowledgeRestorePlan, getRecoveryRevision, isMemoryRecovering } from '../personal/recovery.js';
@@ -164,6 +164,8 @@ export {
     getMemoryBindingReference,
     saveChatMemoryBindings,
     clearChatMemoryBindings,
+    getKnowledgeBindingState,
+    setKnowledgeBindingEnabled,
 };
 
 
@@ -684,9 +686,9 @@ function getKnowledgeBases() {
     return { ...globalBases, ...localBases };
 }
 
-function getChatMemoryBindingContext() {
+function getChatMemoryBindingContext(targetChatId = getChatId()) {
     const live = SillyTavern.getContext();
-    const owner = bindingOwner(live), chatId = getChatId();
+    const owner = bindingOwner(live), chatId = targetChatId;
     return { owner, chatId,
         references: chatBindings(settings.chatMemoryBindings, owner, chatId) };
 }
@@ -700,13 +702,28 @@ function getMemoryBindingReference(id, scope, hashes = null) {
 
 function saveChatMemoryBindings(owner, chatIds, references, remove = false) {
     if (owner !== getChatMemoryBindingContext().owner) throw new Error('角色已切换，请重新打开绑定设置。');
-    updateChatBindings(settings.chatMemoryBindings, owner, chatIds, references, remove);
+    updateChatBindings(settings.chatMemoryBindings, owner, chatIds, remove ? references : references.map(ref => ({ ...ref, enabled: true })), remove);
     saveSettings();
 }
 
 function clearChatMemoryBindings(owner, chatId) {
-    if (owner !== getChatMemoryBindingContext().owner || chatId !== getChatId()) throw new Error('聊天已切换，请重试。');
+    if (owner !== getChatMemoryBindingContext().owner || !chatId) throw new Error('角色已切换，请重试。');
     settings.chatMemoryBindings.chats[bindingKey(owner, chatId)] = [];
+    saveSettings();
+}
+
+function getKnowledgeBindingState(id, scope, chatId) {
+    const context = getChatMemoryBindingContext(chatId);
+    const base = (scope === 'global' ? getGlobalKnowledgeBases() : getLocalKnowledgeBases())[id];
+    const ref = getMemoryBindingReference(id, scope);
+    return knowledgeBindingState(settings.chatMemoryBindings, context.owner, chatId, ref.collectionId, base.enabled);
+}
+
+function setKnowledgeBindingEnabled(owner, chatId, id, scope, enabled) {
+    if (owner !== getChatMemoryBindingContext().owner || !chatId) throw new Error('角色已切换，请重试。');
+    const base = (scope === 'global' ? getGlobalKnowledgeBases() : getLocalKnowledgeBases())[id];
+    if (!base?.enabled && enabled) throw new Error('此知识库已整体停用，请先在“更多操作”中恢复知识库。');
+    setChatBindingEnabled(settings.chatMemoryBindings, owner, chatId, getMemoryBindingReference(id, scope), enabled);
     saveSettings();
 }
 
