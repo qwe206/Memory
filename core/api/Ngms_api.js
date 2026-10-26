@@ -1,8 +1,8 @@
+import { requestSummaryPreset } from '../../personal/summary-preset-request.js';
 import { notify as toastr } from '../../personal/notify.js';
 import { extension_settings, getContext } from "/scripts/extensions.js";
 import { characters, this_chid, getRequestHeaders, saveSettingsDebounced, eventSource, event_types } from "/script.js";
 import { extensionName } from "../../utils/settings.js";
-import { amilyHelper } from '../../core/tavern-helper/main.js';
 import { getSlotProfile, providerToApiMode } from './api-resolver.js';
 
 let ChatCompletionService = undefined;
@@ -282,53 +282,7 @@ async function callNgmsSillyTavernPreset(messages, options) {
         throw new Error('未配置SillyTavern预设ID');
     }
 
-    let originalProfile = '';
-    let responsePromise;
-
-    try {
-        originalProfile = await amilyHelper.triggerSlash('/profile');
-        console.log(`[Memory-NgmsST预设] 当前配置文件: ${originalProfile}`);
-
-        const targetProfile = context.extensionSettings?.connectionManager?.profiles?.find(p => p.id === profileId);
-        if (!targetProfile) {
-            throw new Error(`未找到配置文件ID: ${profileId}`);
-        }
-
-        const targetProfileName = targetProfile.name;
-        console.log(`[Memory-NgmsST预设] 目标配置文件: ${targetProfileName}`);
-
-        const currentProfile = await amilyHelper.triggerSlash('/profile');
-        if (currentProfile !== targetProfileName) {
-            console.log(`[Memory-NgmsST预设] 切换配置文件: ${currentProfile} -> ${targetProfileName}`);
-            const escapedProfileName = targetProfileName.replace(/"/g, '\\"');
-            await amilyHelper.triggerSlash(`/profile await=true "${escapedProfileName}"`);
-        }
-
-        if (!context.ConnectionManagerRequestService) {
-            throw new Error('ConnectionManagerRequestService不可用');
-        }
-
-        console.log(`[Memory-NgmsST预设] 通过配置文件 ${targetProfileName} 发送请求`);
-        responsePromise = context.ConnectionManagerRequestService.sendRequest(
-            targetProfile.id,
-            messages,
-            options.maxTokens || 4000
-        );
-
-    } finally {
-        try {
-            const currentProfileAfterCall = await amilyHelper.triggerSlash('/profile');
-            if (originalProfile && originalProfile !== currentProfileAfterCall) {
-                console.log(`[Memory-NgmsST预设] 恢复原始配置文件: ${currentProfileAfterCall} -> ${originalProfile}`);
-                const escapedOriginalProfile = originalProfile.replace(/"/g, '\\"');
-                await amilyHelper.triggerSlash(`/profile await=true "${escapedOriginalProfile}"`);
-            }
-        } catch (restoreError) {
-            console.error('[Memory-NgmsST预设] 恢复配置文件失败:', restoreError);
-        }
-    }
-
-    const result = await responsePromise;
+    const result = await requestSummaryPreset(context, profileId, messages, options);
 
     if (!result) {
         throw new Error('未收到API响应');
