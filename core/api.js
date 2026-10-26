@@ -1,3 +1,4 @@
+import { requestSummaryPreset } from '../personal/summary-preset-request.js';
 import { notify as toastr } from '../personal/notify.js';
 import { extension_settings, getContext } from "/scripts/extensions.js";
 import { characters } from "/script.js";
@@ -11,7 +12,6 @@ import {
   DEDICATED_LOREBOOK_NAME,
   getChatIdentifier,
 } from "./lore.js";
-import { compatibleTriggerSlash } from "./tavernhelper-compatibility.js";
 
 import {
   isGoogleEndpoint,
@@ -702,53 +702,7 @@ async function callSillyTavernPreset(messages, options) {
         throw new Error('未配置SillyTavern预设ID');
     }
 
-    let originalProfile = '';
-    let responsePromise;
-
-    try {
-        originalProfile = await compatibleTriggerSlash('/profile');
-        console.log(`[Memory-ST预设] 当前配置文件: ${originalProfile}`);
-
-        const targetProfile = context.extensionSettings?.connectionManager?.profiles?.find(p => p.id === profileId);
-        if (!targetProfile) {
-            throw new Error(`未找到配置文件ID: ${profileId}`);
-        }
-
-        const targetProfileName = targetProfile.name;
-        console.log(`[Memory-ST预设] 目标配置文件: ${targetProfileName}`);
-
-        const currentProfile = await compatibleTriggerSlash('/profile');
-        if (currentProfile !== targetProfileName) {
-            console.log(`[Memory-ST预设] 切换配置文件: ${currentProfile} -> ${targetProfileName}`);
-            const escapedProfileName = targetProfileName.replace(/"/g, '\\"');
-            await compatibleTriggerSlash(`/profile await=true "${escapedProfileName}"`);
-        }
-
-        if (!context.ConnectionManagerRequestService) {
-            throw new Error('ConnectionManagerRequestService不可用');
-        }
-
-        console.log(`[Memory-ST预设] 通过配置文件 ${targetProfileName} 发送请求`);
-        responsePromise = context.ConnectionManagerRequestService.sendRequest(
-            targetProfile.id,
-            messages,
-            options.maxTokens || 4000
-        );
-
-    } finally {
-        try {
-            const currentProfileAfterCall = await compatibleTriggerSlash('/profile');
-            if (originalProfile && originalProfile !== currentProfileAfterCall) {
-                console.log(`[Memory-ST预设] 恢复原始配置文件: ${currentProfileAfterCall} -> ${originalProfile}`);
-                const escapedOriginalProfile = originalProfile.replace(/"/g, '\\"');
-                await compatibleTriggerSlash(`/profile await=true "${escapedOriginalProfile}"`);
-            }
-        } catch (restoreError) {
-            console.error('[Memory-ST预设] 恢复配置文件失败:', restoreError);
-        }
-    }
-
-    const result = await responsePromise;
+    const result = await requestSummaryPreset(context, profileId, messages, options);
 
     if (!result) {
         throw new Error('未收到API响应');

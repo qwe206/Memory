@@ -1,5 +1,5 @@
 import { notify as toastr } from './notify.js';
-import { extension_settings } from '/scripts/extensions.js';
+import { extension_settings, getContext } from '/scripts/extensions.js';
 import { eventSource, event_types, saveSettingsDebounced } from '/script.js';
 import { extensionName, defaultSettings } from '../utils/settings.js';
 import { initializeMemoryBus } from '../SL/bus/MemoryBus.js';
@@ -13,14 +13,21 @@ import { executeAutoHide } from '../core/autoHideManager.js';
 import { applyPersonalFeaturePolicy } from './features.js';
 import { migrateMemoryPrompts } from './prompt-style.js';
 import { migrateExtensionSettings } from './migration.js';
-let busy = false;
-async function afterMessage() {
- if (busy || !pluginAuthStatus.authorized) return;
- busy = true;
- try { await checkAndTriggerAutoSummary(); await executeAutoHide(); }
- catch(error) { console.error('[Memory 记忆]', error); }
- finally { busy = false; }
-}
+import { createBackgroundMemoryQueue } from './background-memory.js';
+import { chatKey } from './recovery.js';
+const afterMessage = createBackgroundMemoryQueue({
+ async run() {
+  if (!pluginAuthStatus.authorized) return;
+  const initialChat = chatKey(getContext());
+  await checkAndTriggerAutoSummary();
+  if (pluginAuthStatus.authorized && chatKey(getContext()) === initialChat) await executeAutoHide();
+ },
+ onError(error) { console.error('[Memory 记忆]', error); },
+});
+const afterChatChanged = createBackgroundMemoryQueue({
+ async run() { if (pluginAuthStatus.authorized) await executeAutoHide(); },
+ onError(error) { console.error('[Memory 楼层管理]', error); },
+});
 async function start() {
  migrateExtensionSettings(extension_settings, extensionName);
  const settings = extension_settings[extensionName] ||= {};
@@ -35,7 +42,7 @@ async function start() {
  };
  await createDrawer();
  eventSource.on(event_types.MESSAGE_RECEIVED, afterMessage);
- eventSource.on(event_types.CHAT_CHANGED, executeAutoHide);
+ eventSource.on(event_types.CHAT_CHANGED, afterChatChanged);
  saveSettingsDebounced();
 }
 $(start);
