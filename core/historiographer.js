@@ -19,7 +19,7 @@ import { saveBook as loreSaveBook, withLoreLock } from "./lore-service.js";
 import { extensionName } from "../utils/settings.js";
 import { getChatIdentifier } from "./lore.js";
 import { compatibleWriteToLorebook } from "./tavernhelper-compatibility.js";
-import { captureMemoryKnowledgeState, restoreMemoryKnowledgeState, ingestTextToHanlinyuan } from "./rag-processor.js";
+import { captureMemoryKnowledgeState, restoreMemoryKnowledgeState, ingestTextToHanlinyuan, getMemoryStoryContext, resolveMemoryStoryWorldbook, noteMemoryStoryProgress, captureMemoryStoryState, archiveMemoryStory, restoreMemoryStory } from "./rag-processor.js";
 import { showSummaryModal, showHtmlModal } from "../ui/page-window.js";
 import { getPresetPrompts, getMixedOrder } from '../PresetSettings/index.js';
 import { callAI, generateRandomSeed } from "./api.js";
@@ -83,15 +83,16 @@ export async function checkAndTriggerAutoSummary() {
   if (!targetLorebookName) return;
 
   const characterCount = await readGoldenLedgerProgress(targetLorebookName);
-  const currentChatLength = context.chat.length;
+  const offset = getMemoryStoryContext().offset;
+  const currentChatLength = offset + context.chat.length;
   const retentionCount = settings.historiographyRetentionCount ?? 5;
   const summarizableLength = currentChatLength - retentionCount;
   const unsummarizedCount = summarizableLength - characterCount;
 
   if (unsummarizedCount >= threshold) {
     const batchSize = threshold;
-    const startFloor = characterCount + 1;
-    const endFloor = characterCount + batchSize;
+    const startFloor = Math.max(characterCount - offset, 0) + 1;
+    const endFloor = startFloor + batchSize - 1;
     
     console.log(`[大史官] 自动小总结已触发，处理 ${startFloor} 至 ${endFloor} 楼。`);
     await executeManualSummary(startFloor, endFloor, true);
@@ -132,6 +133,7 @@ function escapeHtml(text) {
 export async function executeManualSummary(startFloor, endFloor, isAuto = false, { silent = false } = {}) {
     silent = silent || !!extension_settings[extensionName].historiographySilent;
     if (isMemoryRecovering()) return false;
+    if (getMemoryStoryContext().story?.archived) { toastr.warning('当前剧情已归档，请新建聊天开始新剧情，或先回溯归档。'); return false; }
     const length = getContext().chat.length;
     if(!Number.isInteger(startFloor)||!Number.isInteger(endFloor)||startFloor<1||endFloor<startFloor||endFloor>length){toastr.warning('请选择有效的起止楼层。');return false;}
     const assertContext = captureMemoryContext();
@@ -145,7 +147,7 @@ export async function executeManualSummary(startFloor, endFloor, isAuto = false,
                 toastr.warning("自动总结：未找到符合条件的消息。", toastTitle);
                 return resolve(false);
             }
-            const textToSummarize = messages.map(m => `【第 ${m.floor} 楼】 ${m.author}: ${m.content}`).join('\n');
+            const textToSummarize = messages.map(m => `${summarySourceLabel(m)} ${m.author}: ${m.content}`).join('\n');
             const summary = await getSummary(textToSummarize, toastTitle);
             assertContext();
             if (summary && (silent || extension_settings[extensionName].historiographySilent)) {
@@ -185,7 +187,7 @@ export async function executeManualSummary(startFloor, endFloor, isAuto = false,
         const generateModalHtml = (msgList) => {
             const messageHtml = msgList.map(msg => `
                 <details class="historiography-message-item" data-author-type="${msg.authorType}">
-                    <summary>【第 ${msg.floor} 楼】 ${escapeHtml(msg.author)}</summary>
+                    <summary>${escapeHtml(summarySourceLabel(msg))} ${escapeHtml(msg.author)}</summary>
                     <div class="historiography-editor-container">
                         <textarea class="text_pole" data-floor="${msg.floor}">${escapeHtml(msg.content)}</textarea>
                     </div>
@@ -242,8 +244,9 @@ export async function executeManualSummary(startFloor, endFloor, isAuto = false,
                     .find('textarea')
                     .map(function() {
                         const floor = $(this).data('floor');
-                        const author = $(this).closest('.historiography-message-item').find('summary').text().replace(`【第 ${floor} 楼】 `, '');
-                        return `【第 ${floor} 楼】 ${author}: ${$(this).val()}`;
+                        const source = messages.find(message => message.floor === Number(floor));
+                        if (!source) throw new Error('原文来源已变化，请重新打开预览。');
+                        return `${summarySourceLabel(source)} ${source.author}: ${$(this).val()}`;
                     }).get().join('\n');
 
                 if (!textToSummarize.trim()) {
@@ -295,6 +298,8 @@ function getRawMessagesForSummary(startFloor, endFloor) {
     const context = getContext();
     const chat = context.chat;
     const settings = extension_settings[extensionName];
+    const offset = getMemoryStoryContext().offset;
+    const chatFile = context.getCurrentChatId?.() ?? context.chatId ?? context.chat_filename ?? '当前聊天';
 
     const historySlice = chat.slice(startFloor - 1, endFloor);
     if (historySlice.length === 0) return null;
@@ -321,7 +326,9 @@ function getRawMessagesForSummary(startFloor, endFloor) {
         if (!content.trim()) return null;
 
         return {
-            floor: startFloor + index,
+            floor: offset + startFloor + index,
+            localFloor: startFloor + index,
+            chatFile,
             author: msg.is_user ? userName : characterName,
             authorType: msg.is_user ? 'user' : 'char',
             content: content.trim()
@@ -329,6 +336,10 @@ function getRawMessagesForSummary(startFloor, endFloor) {
     }).filter(Boolean);
 
     return messages;
+}
+
+function summarySourceLabel(message) {
+    return `【剧情第 ${message.floor} 楼｜来源文件 ${JSON.stringify(String(message.chatFile))}｜本地第 ${message.localFloor} 楼】`;
 }
 
 async function getSummary(formattedHistory, toastTitle, retryCount = 0, regeneration = {}) {
@@ -349,7 +360,8 @@ async function getSummary(formattedHistory, toastTitle, retryCount = 0, regenera
     const order = getMixedOrder('small_summary') || [];
 
     const messages = [
-        { role: 'system', content: generateRandomSeed() }
+        { role: 'system', content: generateRandomSeed() },
+        { role: 'system', content: '原文包含剧情累计楼层、来源聊天文件和本地楼层。剧情楼层跨文件连续，本地楼层只在所属文件内有效。不要把不同文件的相同本地楼层当成同一消息；引用楼层时使用剧情楼层，并保留来源文件。' }
     ];
     
     // 根据混合排序添加提示词
@@ -410,6 +422,11 @@ async function getSummary(formattedHistory, toastTitle, retryCount = 0, regenera
 
 async function writeSummary(summary, startFloor, endFloor, toastTitle, assertContext = captureMemoryContext()) {
     assertContext();
+    const localStartFloor = startFloor, localEndFloor = endFloor;
+    const sourceContext = getContext();
+    const chatFile = sourceContext.getCurrentChatId?.() ?? sourceContext.chatId ?? sourceContext.chat_filename ?? '当前聊天';
+    const offset = getMemoryStoryContext().offset;
+    startFloor += offset; endFloor += offset;
     if (!summary?.trim() || RESERVED_LEDGER_STRUCTURE_REGEX.test(summary)) throw new Error('总结为空或包含内部标记，请修改后保存。');
     const settings = extension_settings[extensionName];
     const context = getContext();
@@ -435,7 +452,7 @@ async function writeSummary(summary, startFloor, endFloor, toastTitle, assertCon
             toastr.info("正在将此份“小总结”送往向量知识库...", "向量知识库");
             const metadata = {
                 bookName: targetLorebookName,
-                memoryRange: { startFloor, endFloor },
+                memoryRange: { startFloor, endFloor, chatFile, localStartFloor, localEndFloor },
                 entryName: `小总结 ${startFloor}-${endFloor}楼`
             };
             assertContext();
@@ -459,7 +476,8 @@ async function writeSummary(summary, startFloor, endFloor, toastTitle, assertCon
                 const previous = oldContent?.match(PROGRESS_SEAL_REGEX);
                 if(previous && Number(previous[1]) >= startFloor)throw new Error('这个范围已包含已保存的小总结，请从尚未总结的楼层开始。');
                 const newSeal = `\n\n本条勿动【前${endFloor}楼总结已完成】否则后续总结无法进行。`;
-                const newChapter = `\n\n---\n\n【${startFloor}楼至${endFloor}楼详细总结记录】\n${summary}`;
+                const source = `来源聊天文件：${JSON.stringify(String(chatFile))}；本地第${localStartFloor}至${localEndFloor}楼；剧情第${startFloor}至${endFloor}楼。`;
+                const newChapter = `\n\n---\n\n【${startFloor}楼至${endFloor}楼详细总结记录】\n${source}\n${summary}`;
                 if (oldContent) {
                     const contentWithoutSeal = oldContent.replace(PROGRESS_SEAL_REGEX, "").trim();
                     return contentWithoutSeal + newChapter + newSeal;
@@ -494,6 +512,7 @@ async function writeSummary(summary, startFloor, endFloor, toastTitle, assertCon
             );
 
             if (success) {
+                noteMemoryStoryProgress(endFloor);
                 toastr.success(`总结已写入世界书。`, `${toastTitle} - 世界书`);
                 executeAutoHide(); // 总结成功后立即触发自动隐藏
                 return true;
@@ -762,7 +781,8 @@ export async function executeExpedition() {
 
         const summarizedCount = await readGoldenLedgerProgress(targetLorebookName);
         const retentionCount = settings.historiographyRetentionCount ?? 5;
-        const totalHistory = context.chat.length;
+        const offset = getMemoryStoryContext().offset;
+        const totalHistory = offset + context.chat.length;
         const summarizableLength = totalHistory - retentionCount;
         const remainingHistory = summarizableLength - summarizedCount;
 
@@ -776,7 +796,7 @@ export async function executeExpedition() {
             return;
         }
         toastr.info(`开始批量总结：${totalBatches * batchSize} 层历史，分 ${totalBatches} 批次处理！不足一批的对话继续保留。`, "批量总结开始");
-        let currentProgress = summarizedCount;
+        let currentProgress = Math.max(summarizedCount, offset);
 
         for (let i = 0; i < totalBatches; i++) {
             if (manualStopRequested) {
@@ -799,7 +819,7 @@ export async function executeExpedition() {
                 break;
             }
 
-            const success = await executeManualSummary(startFloor, endFloor, false);
+            const success = await executeManualSummary(startFloor - offset, endFloor - offset, false);
             if (success) {
                 currentProgress = endFloor;
             } else {
@@ -911,7 +931,7 @@ export async function getTargetLorebookName() {
     const selected = settings.historiographyWorldbookOverrides?.[chatKey(context)];
     if (selected) {
         if (!world_names.includes(selected)) throw new Error('选中的旧世界书已不存在，请重新选择，未创建新书。');
-        return selected;
+        return resolveMemoryStoryWorldbook(selected);
     }
     let targetLorebookName = null;
     switch (settings.lorebookTarget) {
@@ -924,7 +944,7 @@ export async function getTargetLorebookName() {
             targetLorebookName = summaryBookName(chatIdentifier, world_names);
             break;
     }
-    return targetLorebookName;
+    return resolveMemoryStoryWorldbook(targetLorebookName);
 }
 
 function archiveSnapshot(worldbook) {
@@ -946,16 +966,20 @@ export async function archiveCurrentLedger() {
    const entry = findActiveSummary(book);
    if (!entry) throw new Error('没有可归档的活动总结。');
    const originalBook = structuredClone(book);
-   entry.amily3Archive = archiveSnapshot(worldbook);
+   const progress = String(entry.content).match(PROGRESS_SEAL_REGEX);
+   if (progress) noteMemoryStoryProgress(Number(progress[1]));
+   const storySnapshot = await captureMemoryStoryState(); assertContext();
+   if (storySnapshot) storySnapshot.archiveChat = getContext().chatId ?? getContext().getCurrentChatId?.();
+   entry.amily3Archive = { ...archiveSnapshot(worldbook), version: 2, story: storySnapshot };
    entry.comment = RUNNING_LOG_COMMENT + '_归档_' + new Date().toISOString();
    entry.disable = true;
-   try { await saveArchiveBook(worldbook, book); }
+   try { await saveArchiveBook(worldbook, book); assertContext(); archiveMemoryStory(storySnapshot); }
    catch (error) {
     try { await saveArchiveBook(worldbook, originalBook); }
     catch (undoError) { throw new Error(error.message + ' 未能撤回，请检查世界书：' + undoError.message); }
     throw error;
    }
-   reloadEditor(worldbook); toastr.success('已归档总结、知识库选择和楼层显示状态。');
+   reloadEditor(worldbook); toastr.success('已归档当前剧情的总结和向量记忆。下个新聊天会从空白开始。');
    return true;
   });
  } catch (error) { toastr.error(error.message); return false; }
@@ -965,9 +989,17 @@ export async function getArchivedLedgers() {
  try {
   const worldbook = await getTargetLorebookName();
   if (!worldbook) return [];
-  const book = await loadWorldInfo(worldbook);
-  return Object.entries(book?.entries || {}).filter(([,entry]) => isArchivedSummary(entry))
-   .map(([key,entry]) => ({key,comment:entry.comment})).sort((a,b) => b.comment.localeCompare(a.comment));
+  const story = getMemoryStoryContext().story;
+  const books = new Set([worldbook, ...Object.values(getContext().extensionSettings?.['hanlinyuan-rag-core']?.chatMemoryBindings?.stories || {})
+    .filter(item => item.owner === story?.owner).map(item => item.worldbook).filter(Boolean)]);
+  const result = [];
+  for (const name of books) {
+    const book = await loadWorldInfo(name);
+    for (const [key,entry] of Object.entries(book?.entries || {})) if (isArchivedSummary(entry)) {
+      result.push({key: name === worldbook ? key : JSON.stringify([name,key]), comment: `${entry.comment}${entry.amily3Archive?.story?.archiveChat ? ' · ' + entry.amily3Archive.story.archiveChat : ''}`});
+    }
+  }
+  return result.sort((a,b) => b.comment.localeCompare(a.comment));
  } catch (error) { toastr.error(error.message); return []; }
 }
 export async function restoreArchivedLedger(targetLoreKey) {
@@ -975,34 +1007,54 @@ export async function restoreArchivedLedger(targetLoreKey) {
  try {
   beginMemoryRecovery(); started = true;
   const assertContext = captureMemoryContext();
-  const worldbook = await getTargetLorebookName();
+  let worldbook = await getTargetLorebookName();
+  if (String(targetLoreKey).startsWith('[')) {
+    const destination = JSON.parse(targetLoreKey);
+    if (!Array.isArray(destination) || destination.length !== 2 || !world_names.includes(destination[0])) throw new Error('归档位置无效。');
+    [worldbook, targetLoreKey] = destination;
+  }
   if (!worldbook) throw new Error('请先设置总结世界书。');
   return await withLoreLock('memory-restore:' + worldbook, async () => {
    assertContext();
    const book = structuredClone(await loadWorldInfo(worldbook)); assertContext();
-   const target = book?.entries?.[targetLoreKey];
+   let target = book?.entries?.[targetLoreKey];
    if (!isArchivedSummary(target) || !target.disable) throw new Error('请选择有效的归档总结。');
    const progressMatch = String(target.content).match(PROGRESS_SEAL_REGEX);
    if (!progressMatch) throw new Error('归档缺少总结进度，未恢复。');
    const progress = Number(progressMatch[1]);
-   const snapshot = target.amily3Archive?.version === 1 ? target.amily3Archive : null;
-   planMemoryVisibility(snapshot?.visibility, progress); // Validate before changing anything.
-   const originalBook = structuredClone(book), before = archiveSnapshot(worldbook);
+   const snapshot = [1,2].includes(target.amily3Archive?.version) ? target.amily3Archive : null;
+   const sameChat = !snapshot?.visibility || snapshot.visibility.chat === chatKey(getContext());
+   if (!sameChat && !snapshot?.story) throw new Error('旧归档属于另一个聊天，请在原聊天恢复；旧格式不支持跨文件回溯。');
+   const localProgress = snapshot?.story ? Math.max(0, progress - (snapshot.story.segments[getContext().chatId ?? getContext().getCurrentChatId?.()]?.offset || 0)) : progress;
+   if (sameChat) planMemoryVisibility(snapshot?.visibility, localProgress);
+   const originalBook = structuredClone(book), before = { ...archiveSnapshot(worldbook), version: 2, story: await captureMemoryStoryState() };
+   assertContext();
+   if (before.story) before.story.archiveChat = getContext().chatId ?? getContext().getCurrentChatId?.();
    const active = findActiveSummary(book);
    if (active) {
     active.amily3Archive = before;
     active.comment = RUNNING_LOG_COMMENT + '_归档_' + new Date().toISOString();
     active.disable = true;
    }
+   if (snapshot?.story) {
+    target = structuredClone(target);
+    const newKey = String(Math.max(0, ...Object.keys(book.entries).map(Number).filter(Number.isFinite)) + 1);
+    target.uid = Number(newKey); delete target.amily3Archive;
+    book.entries[newKey] = target;
+   }
    target.comment = RUNNING_LOG_COMMENT; target.disable = false;
-   let saved = false, vectors;
+   let saved = false, vectors, storyline;
    try {
     assertContext();
     saved = true; await saveArchiveBook(worldbook, book); assertContext();
-    vectors = restoreMemoryKnowledgeState(worldbook, snapshot?.knowledge, progress);
-    await restoreMemoryVisibility(snapshot?.visibility, progress); assertContext();
+    if (snapshot?.story) storyline = restoreMemoryStory(snapshot.story);
+    else vectors = restoreMemoryKnowledgeState(worldbook, snapshot?.knowledge, progress);
+    if (sameChat) await restoreMemoryVisibility(snapshot?.visibility, localProgress);
+    else await restoreMemoryVisibility(null, getContext().chat.length);
+    assertContext();
    } catch (error) {
     const failures = [];
+    try { storyline?.undo(); } catch (undoError) { failures.push(undoError.message); }
     try { vectors?.undo(); } catch (undoError) { failures.push(undoError.message); }
     if (saved) try { await saveArchiveBook(worldbook, originalBook); } catch (undoError) { failures.push(undoError.message); }
     try { assertContext(); await restoreMemoryVisibility(before.visibility, 0); } catch (undoError) { failures.push(undoError.message); }

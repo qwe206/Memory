@@ -15,6 +15,8 @@ export function chunkHash(hash) {
 }
 
 export function chatBindings(state, owner, chatId) {
+  const story = state?.stories?.[state?.storyChats?.[bindingKey(owner, chatId)]];
+  if (story) return story.references;
   return state?.chats?.[bindingKey(owner, chatId)] || [];
 }
 
@@ -50,6 +52,10 @@ export function updateChatBindings(state, owner, chatIds, references, remove = f
     pending[key] = [...entries.values()];
   }
   Object.assign(state.chats, pending);
+  for (const [key, references] of Object.entries(pending)) {
+    const story = state.stories?.[state.storyChats?.[key]];
+    if (story) story.references = structuredClone(references);
+  }
 }
 
 export function restrictBasesToChat(bases, state, owner, chatId) {

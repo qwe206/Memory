@@ -5,7 +5,10 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url), { parse } = require('acorn');
 const read = file => fs.readFile(new URL('../../' + file, import.meta.url), 'utf8');
 const load = text => import('data:text/javascript;base64,' + Buffer.from(text).toString('base64'));
-const bindings = await load(await read('personal/chat-memory-bindings.js'));
+const bindingSource = await read('personal/chat-memory-bindings.js');
+const bindingURL = 'data:text/javascript;base64,' + Buffer.from(bindingSource).toString('base64');
+const bindings = await import(bindingURL);
+const stories = await load((await read('personal/story-memory.js')).replace("'./chat-memory-bindings.js'", JSON.stringify(bindingURL)));
 
 test('multi-chat bindings merge selected hashes, remove independently and survive serialization', () => {
   let state = { enabled: true, chats: {} };
@@ -59,7 +62,7 @@ async function harness() {
   const requests = [], injections = [];
   const rows = [{ hash: 2, text: '<聊天记录>unbound high score', score: .99 }, { hash: 1, text: '<聊天记录>bound lower score', score: .7 }];
   let afterQuery;
-  const fixture = { ...bindings, GLOBAL_SCOPE_ID: '_global', settings, context,
+  const fixture = { ...bindings, ...stories, GLOBAL_SCOPE_ID: '_global', settings, context,
     SillyTavern: { getContext: () => context }, getCharacterStableId: () => 'char', getChatId: () => chatId,
     getLocalKnowledgeBases: () => local, getGlobalKnowledgeBases: () => global, getDynamicCollectionId: async () => 'legacy',
     getEmbeddings: async () => [[.1, .2]], saveSettings: () => {}, getRecoveryRevision: () => 0, isMemoryRecovering: () => false,
@@ -88,6 +91,7 @@ test('real query excludes unbound local/global/legacy data and keeps lower-ranke
   h.requests.length = 0;
   assert.deepEqual(await h.api.queryVectors('query', { includeBases: [{ collectionId: 'another_b' }] }), []);
   assert.equal(h.requests.length, 0, 'explicit priority groups cannot bypass bindings');
+  Object.values(h.settings.chatMemoryBindings.stories).forEach(story=>story.archived=true);
   h.changeChat('fresh'); assert.deepEqual(await h.api.queryVectors('query'), []);
 });
 
@@ -100,7 +104,7 @@ test('real priority and ordinary injection obey the same per-chat binding', asyn
     assert(h.injections.some(item => item.text.includes('bound lower')));
     assert(!h.injections.some(item => item.text.includes('unbound high')));
     assert(h.requests.every(item => item.body.collectionId === 'another_b'), 'bound global collection retains its original owner');
-    h.requests.length = 0; h.injections.length = 0; h.changeChat('fresh');
+    h.requests.length = 0; h.injections.length = 0; Object.values(h.settings.chatMemoryBindings.stories).forEach(story=>story.archived=true); h.changeChat('fresh');
     await h.api.rearrangeChat([{ is_user: true, mes: 'query' }]);
     assert.equal(h.requests.length, 0); assert(!h.injections.some(item => item.text));
   }
@@ -108,7 +112,7 @@ test('real priority and ordinary injection obey the same per-chat binding', asyn
 
 test('switching chats during retrieval discards results; newly imported memories bind only to their creating chat', async () => {
   const h = await harness(); h.bind([{ collectionId: 'char_a', hashes: null }]);
-  h.onQuery(() => h.changeChat('fresh'));
+  h.onQuery(() => { Object.values(h.settings.chatMemoryBindings.stories).forEach(story=>story.archived=true); h.changeChat('fresh'); });
   await h.api.rearrangeChat([{ is_user: true, mes: 'query' }]);
   assert(!h.injections.some(item => item.text));
   const base = h.api.addKnowledgeBase('新聊天的总结', 'lorebook');
@@ -122,6 +126,7 @@ test('saved bindings always apply even when the old opt-in flag was off', async 
   assert.deepEqual((await h.api.resolveRetrievalBases()).map(b => b.collectionId), ['char_a']);
   h.settings.retrieval.independentChatMemoryEnabled = true;
   assert.deepEqual((await h.api.resolveRetrievalBases()).map(b => b.collectionId), ['char_a']);
+  Object.values(h.settings.chatMemoryBindings.stories).forEach(story=>story.archived=true);
   h.changeChat('fresh'); assert.deepEqual(await h.api.resolveRetrievalBases(), []);
 });
 

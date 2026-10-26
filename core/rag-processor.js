@@ -22,6 +22,7 @@ import {
 } from './rag-api.js';
 import { superSort } from './super-sorter.js';
 import { readVectorChunks } from '../personal/vector-reader.js';
+import { enterStory, storyForChat, storyWorldbook, archiveStory, restoreStory, setStoryBindings } from '../personal/story-memory.js';
 import { bindingOwner, bindingKey, chatBindings, updateChatBindings, restrictBasesToChat, filterBoundChunks, knowledgeBindingState, setChatBindingEnabled } from '../personal/chat-memory-bindings.js';
 import { writeUniqueVectorChunks } from '../personal/vector-writes.js';
 import { migrateRagPrompts } from '../personal/prompt-style.js';
@@ -166,6 +167,14 @@ export {
     clearChatMemoryBindings,
     getKnowledgeBindingState,
     setKnowledgeBindingEnabled,
+    getMemoryStoryContext,
+    resolveMemoryStoryWorldbook,
+    setMemoryStoryWorldbook,
+    noteMemoryStoryProgress,
+    captureMemoryStoryState,
+    archiveMemoryStory,
+    restoreMemoryStory,
+    editKnowledgeBaseChunk,
 };
 
 
@@ -195,6 +204,7 @@ async function ingestTextToHanlinyuan(text, source = 'manual', metadata = {}, pr
         return { success: false, error: '输入文本为空' };
     }
     if (!settings) return { success: false, error: '核心未初始化' };
+    if (getMemoryStoryContext().story?.archived) return { success: false, error: '当前剧情已归档，请新建聊天或先回溯归档。' };
     if (isMemoryRecovering()) return { success: false, error: '正在恢复归档，请稍后入库。' };
 
     try {
@@ -689,6 +699,11 @@ function getKnowledgeBases() {
 function getChatMemoryBindingContext(targetChatId = getChatId()) {
     const live = SillyTavern.getContext();
     const owner = bindingOwner(live), chatId = targetChatId;
+    const previousStory = storyForChat(settings.chatMemoryBindings, owner, getChatId());
+    const previousLength = previousStory?.segments[getChatId()]?.length;
+    const previousActive = settings.chatMemoryBindings.activeStories?.[owner];
+    enterStory(settings.chatMemoryBindings, owner, getChatId(), live.chat?.length || 0);
+    if (!previousStory || previousLength !== (live.chat?.length || 0) || previousActive !== settings.chatMemoryBindings.activeStories?.[owner]) saveSettings();
     return { owner, chatId,
         references: chatBindings(settings.chatMemoryBindings, owner, chatId) };
 }
@@ -709,7 +724,75 @@ function saveChatMemoryBindings(owner, chatIds, references, remove = false) {
 function clearChatMemoryBindings(owner, chatId) {
     if (owner !== getChatMemoryBindingContext().owner || !chatId) throw new Error('角色已切换，请重试。');
     settings.chatMemoryBindings.chats[bindingKey(owner, chatId)] = [];
+    setStoryBindings(settings.chatMemoryBindings, owner, chatId, []);
     saveSettings();
+}
+
+function getMemoryStoryContext() {
+    const { owner, chatId } = getChatMemoryBindingContext();
+    const story = storyForChat(settings.chatMemoryBindings, owner, chatId);
+    return { story, offset: story?.segments[chatId]?.offset || 0 };
+}
+
+function resolveMemoryStoryWorldbook(fallback) {
+    const { story } = getMemoryStoryContext();
+    const name = storyWorldbook(story, fallback); saveSettings(); return name;
+}
+
+function setMemoryStoryWorldbook(name) {
+    const { story } = getMemoryStoryContext();
+    if (!story) throw new Error('请先打开聊天。');
+    if (name) story.worldbook = name;
+    else delete story.worldbook;
+    saveSettings();
+}
+
+function noteMemoryStoryProgress(progress) {
+    const { story } = getMemoryStoryContext();
+    if (story) story.progress = progress;
+    saveSettings();
+}
+
+async function captureMemoryStoryState() {
+    const { story } = getMemoryStoryContext();
+    if (!story) return null;
+    const captured = structuredClone(story), fingerprint = bindingFingerprint();
+    captured.archiveChat = getChatId();
+    const local = Object.values(getLocalKnowledgeBases()).map(base => ({ ...base, collectionId: `${getCharacterStableId()}_${base.id}` }));
+    const global = Object.values(getGlobalKnowledgeBases()).map(base => ({ ...base, collectionId: `${base.owner || GLOBAL_SCOPE_ID}_${base.id}` }));
+    const catalog = new Map([...local,...global].map(base => [base.collectionId,base]));
+    captured.references = await Promise.all(captured.references.map(async ref => {
+        const base = catalog.get(ref.collectionId);
+        if (!base) return { ...ref, enabled: false, hashes: [] };
+        const response = await fetch('/api/vector/list', { method: 'POST', headers: context.getRequestHeaders(),
+            body: JSON.stringify({ collectionId: ref.collectionId, source: 'webllm', embeddings: {} }) });
+        if (!response.ok) throw new Error('读取向量快照失败，未完成归档。');
+        const listing = await response.json(), hashes = Array.isArray(listing) ? listing : listing?.hashes;
+        if (!Array.isArray(hashes)) throw new Error('向量快照格式错误，未完成归档。');
+        const present = new Set(hashes.map(String));
+        if (ref.hashes !== null && ref.hashes.some(hash => !present.has(String(hash)))) throw new Error('部分已绑定分块在向量库中缺失，未完成归档，请先检查知识库。');
+        return { ...ref, enabled: base.enabled && ref.enabled !== false, hashes: ref.hashes === null ? [...present] : ref.hashes.filter(hash => present.has(String(hash))) };
+    }));
+    if (fingerprint !== bindingFingerprint()) throw new Error('归档期间记忆已变化，请重试。');
+    return captured;
+}
+
+function archiveMemoryStory(snapshot) {
+    const { owner, chatId } = getChatMemoryBindingContext();
+    const current = storyForChat(settings.chatMemoryBindings, owner, chatId);
+    if (!snapshot || current?.id !== snapshot.id || snapshot.owner !== owner || snapshot.archiveChat !== chatId) throw new Error('归档目标已变化，未关闭当前剧情，请重试。');
+    archiveStory(settings.chatMemoryBindings, owner, chatId, snapshot); saveSettings();
+}
+
+function restoreMemoryStory(snapshot) {
+    const previous = structuredClone(settings.chatMemoryBindings);
+    const { owner, chatId } = getChatMemoryBindingContext();
+    restoreStory(settings.chatMemoryBindings, owner, chatId, snapshot, SillyTavern.getContext().chat?.length || 0); saveSettings();
+    return { undo() {
+        const state = settings.chatMemoryBindings;
+        for (const key of Object.keys(state)) delete state[key];
+        Object.assign(state, previous); saveSettings();
+    } };
 }
 
 function getKnowledgeBindingState(id, scope, chatId) {
@@ -1069,6 +1152,46 @@ async function getKnowledgeBaseChunks(taskId, scope = 'local', signal = null) {
     const result = await readVectorChunks({ collectionId: `${owner}_${taskId}`, headers: context.getRequestHeaders(), embed: getEmbeddings, signal });
     if (signal?.aborted || getCharacterStableId() !== charId || getChatId() !== chatId) throw new Error('聊天已切换，请重新打开分块查看。');
     return result;
+}
+
+async function editKnowledgeBaseChunk(taskId, scope, hash, originalText, text, targetChatId = getChatId(), signal = null) {
+    if (!text?.trim()) throw new Error('分块内容不能为空。');
+    if (isMemoryRecovering()) throw new Error('归档或回溯期间不能编辑。');
+    const currentChat = getChatId(), owner = getChatMemoryBindingContext().owner;
+    const revision = getRecoveryRevision();
+    const target = getChatMemoryBindingContext(targetChatId), previous = JSON.stringify(target.references);
+    const ref = getMemoryBindingReference(taskId, scope), bound = target.references.find(item => item.collectionId === ref.collectionId);
+    const story = storyForChat(settings.chatMemoryBindings, owner, targetChatId);
+    if (!bound) throw new Error('请先把此知识库绑定到所选聊天，再编辑分块。');
+    if (story?.archived) throw new Error('这份剧情已归档，请先回溯再编辑。');
+    const assertUnchanged = () => {
+        if (signal?.aborted || currentChat !== getChatId() || owner !== getChatMemoryBindingContext().owner
+            || previous !== JSON.stringify(getChatMemoryBindingContext(targetChatId).references) || isMemoryRecovering()
+            || revision !== getRecoveryRevision() || story?.archived) throw new Error('聊天或记忆状态已变化，原分块保留，请重试。');
+    };
+    const result = await getKnowledgeBaseChunks(taskId, scope, signal); assertUnchanged();
+    if (!result.complete) throw new Error('分块未完整读取，未保存。');
+    const allowed = bound.hashes === null ? null : new Set(bound.hashes.map(String));
+    const chunks = result.chunks.filter(chunk => !allowed || allowed.has(String(chunk.hash)));
+    const row = chunks.find(chunk => String(chunk.hash) === String(hash));
+    if (!row || row.text !== originalText) throw new Error('原分块已变化或不属于所选聊天，请重新打开。');
+    if (text === originalText) return { id: taskId, scope, name: ref.name };
+    const replacement = chunks.map(chunk => ({ text: chunk === row ? text : chunk.text }));
+    const vectors = await getEmbeddings(replacement.map(chunk => chunk.text), signal); assertUnchanged();
+    if (vectors.length !== replacement.length) throw new Error('嵌入结果数量不匹配，原分块保留。');
+    const id = `edit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, charId = getCharacterStableId();
+    const base = { id, name: `${ref.name}（编辑副本）`, source: (scope === 'global' ? getGlobalKnowledgeBases() : getLocalKnowledgeBases())[taskId].source,
+        owner: charId, enabled: false, memoryRevision: 1, memoryChatKey: bindingKey(owner, targetChatId), createdAt: new Date().toISOString(), editedFrom: ref.collectionId };
+    const collectionId = `${charId}_${id}`;
+    getLocalKnowledgeBases()[id] = base; saveSettings();
+    try {
+        await insertVectors(replacement.map((chunk, index) => ({ ...chunk, vector: vectors[index] })), signal, collectionId); assertUnchanged();
+        base.enabled = true;
+        setStoryBindings(settings.chatMemoryBindings, owner, targetChatId, target.references.map(item => item.collectionId === ref.collectionId
+            ? { ...item, collectionId, hashes: null } : item));
+        saveSettings();
+        return { id, scope: 'local', name: base.name };
+    } catch (error) { base.memoryRestoreNote = '编辑未完成，原记忆仍保留'; saveSettings(); throw error; }
 }
 
 async function countVectorsInCollection(collectionId) {

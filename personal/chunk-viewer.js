@@ -1,5 +1,5 @@
-import { getKnowledgeBaseChunks, getMemoryBindingReference, getChatMemoryBindingContext } from '../core/rag-processor.js';
-import { openChatBindingDialog } from './chat-binding-ui.js';
+import { getKnowledgeBaseChunks, getMemoryBindingReference, getChatMemoryBindingContext, editKnowledgeBaseChunk } from '../core/rag-processor.js';
+import { openChatBindingDialog, getKnowledgeManagementContext, renderChatBindingPanel } from './chat-binding-ui.js';
 import { chunkHash } from './chat-memory-bindings.js';
 import { themeMemoryDialog } from './shell.js';
 import { pluginAuthStatus } from '../utils/auth.js';
@@ -8,6 +8,7 @@ import { auditChunkDuplicates } from './chunk-audit.js';
 export async function openChunkViewer(id, scope, name) {
   if (!pluginAuthStatus.authorized) return;
   const captured = getChatMemoryBindingContext(), reference = getMemoryBindingReference(id, scope);
+  const managed = getKnowledgeManagementContext();
   const dialog = document.createElement('dialog'); dialog.className = 'am-chunk-viewer';
   dialog.setAttribute('aria-label','知识库分块');
   dialog.innerHTML = '<header><div><h2>知识库分块</h2><p class="am-chunk-book"></p></div><button type="button" class="am-chunk-close">关闭</button></header><p class="am-chunk-status" role="status">正在读取实际入库内容…</p><label class="am-chunk-search-label">搜索分块<input type="search" class="am-chunk-search" placeholder="输入关键词" disabled></label><div class="am-chunk-grid"></div><footer><button type="button" class="am-chunk-prev">上一页</button><span class="am-chunk-page" aria-live="polite"></span><button type="button" class="am-chunk-next">下一页</button></footer>';
@@ -72,6 +73,29 @@ export async function openChunkViewer(id, scope, name) {
       const preview = document.createElement('span'); preview.className = 'am-chunk-preview'; preview.textContent = chunk.text.replace(/<[^>]*>/g,'').trim().slice(0,100);
       const full = document.createElement('pre'); full.textContent = chunk.text;
       summary.append(preview); details.append(summary,full);
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'am-chunk-edit'; edit.textContent = '编辑分块';
+      const bound = getChatMemoryBindingContext(managed.chatId).references.find(ref => ref.collectionId === reference.collectionId);
+      edit.disabled = !bound || (bound.hashes !== null && !bound.hashes.map(String).includes(String(chunk.hash)));
+      edit.title = edit.disabled ? '此分块未绑定到所选聊天，可先绑定后编辑' : '修改当前剧情使用的副本，保留归档原文';
+      edit.addEventListener('click', () => {
+        if (details.querySelector('textarea')) return;
+        const editor = document.createElement('textarea'); editor.value = chunk.text; editor.setAttribute('aria-label', `编辑块 ${chunk.number}`);
+        const actions = document.createElement('div'); actions.className = 'am-chunk-edit-actions';
+        const save = document.createElement('button'); save.type = 'button'; save.textContent = '保存分块';
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = '取消编辑';
+        cancel.addEventListener('click', () => { editor.remove(); actions.remove(); full.hidden = false; edit.hidden = false; });
+        save.addEventListener('click', async () => {
+          save.disabled = cancel.disabled = true;
+          try {
+            if (getKnowledgeManagementContext().owner !== managed.owner || getKnowledgeManagementContext().chatId !== managed.chatId) throw new Error('管理文件已切换，请重新打开。');
+            const updated = await editKnowledgeBaseChunk(id, scope, chunk.hash, chunk.text, editor.value, managed.chatId, controller.signal);
+            renderChatBindingPanel(); window.updateHLYMemoryCount?.();
+            dialog.close(); await openChunkViewer(updated.id, updated.scope, updated.name);
+          } catch (error) { status.textContent = error.message; save.disabled = cancel.disabled = false; }
+        });
+        actions.append(save,cancel); full.hidden = true; edit.hidden = true; details.open = true; details.append(editor,actions); editor.focus();
+      });
+      details.append(edit);
       const row = document.createElement('div'); row.className = 'am-chunk-selectable';
       const label = document.createElement('label'); label.className = 'am-chunk-choice';
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox';
@@ -94,7 +118,7 @@ export async function openChunkViewer(id, scope, name) {
     if (!dialog.isConnected || !pluginAuthStatus.authorized) return;
     chunks=result.chunks;
     audit=auditChunkDuplicates(chunks);duplicateOnly.disabled=false;
-    const duplicateSummary=`${audit.unique} 份不同内容，${audit.extra} 条完全重复。这里只检查，不删除。`;
+    const duplicateSummary=`${audit.unique} 份不同内容，${audit.extra} 条完全重复。重复检查不删除原文；编辑另存剧情副本。`;
     status.textContent = result.complete ? `已读取全部 ${result.total} 块。${duplicateSummary}` : `仅返回 ${chunks.length} / ${result.total} 块，内容可能不完整。已读内容中：${duplicateSummary}`;
     search.disabled=false;render();
   } catch(error) {
