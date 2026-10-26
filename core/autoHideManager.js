@@ -3,6 +3,7 @@ import { getContext, extension_settings } from "/scripts/extensions.js";
 import { SlashCommandParser } from "/scripts/slash-commands/SlashCommandParser.js";
 import { extensionName } from "../utils/settings.js";
 import { readGoldenLedgerProgress, getTargetLorebookName } from "./historiographer.js";
+import { getMemoryStoryContext } from './rag-processor.js';
 import { captureVisibility, visibilityPlan, visibilityCommands, isMemoryRecovering, getRecoveryRevision, chatKey } from '../personal/recovery.js';
 
 export const captureMemoryVisibility = () => captureVisibility(getContext());
@@ -55,7 +56,7 @@ export async function executeAutoHide() {
             const targetLorebookName = await getTargetLorebookName();
 
             if (targetLorebookName) {
-                const summarizedCount = await readGoldenLedgerProgress(targetLorebookName);
+                const summarizedCount = Math.min(context.chat.length, Math.max(0, await readGoldenLedgerProgress(targetLorebookName) - getMemoryStoryContext().offset));
                 if (summarizedCount > 0) {
                     hideUntilIndex = summarizedCount - 1;
                 }

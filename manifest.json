@@ -1,7 +1,7 @@
 {
   "name": "Memory",
   "display_name": "Memory",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "author": "Wx-2025",
   "description": "聊天记忆管理：大小总结、向量知识库、API 配置与提示词设置。",
   "minSillyTavernVersion": "1.10.0",
@@ -9,5 +9,6 @@
   "homePage": "https://github.com/qwe206/Memory",
   "loading_order": 9999,
   "js": "personal/main.js",
+  "generate_interceptor": "memory_rearrangeChat",
   "css": "personal/fullscreen-ui.css"
 }

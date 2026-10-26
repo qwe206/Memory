@@ -64,12 +64,12 @@ const prefix='/scripts/extensions/third-party/Memory/';
   await binding.locator('.am-binding-save:not(:disabled)').waitFor();await binding.locator('.am-binding-save').click();
   assert.match(await panel.textContent(),/整个知识库/);
   assert(!(await p.locator('.hly-kb-item-checkbox').first().isVisible()),'selection folds after saving');
-  // New chat defaults to no old memories; returning restores its own binding.
+  // Without archiving, the next file continues the current storyline.
   await p.evaluate(async prefix=>{
    previewContext.getCurrentChatId=()=> 'brand-new-chat';globalThis.SillyTavern.getContext=()=>previewContext;
    const ui=await import(prefix+'personal/chat-binding-ui.js');ui.renderChatBindingPanel();
   },prefix);
-  assert.match(await panel.textContent(),/不会检索旧知识库/);
+  assert.match(await panel.textContent(),/整个知识库/);
   await p.evaluate(async prefix=>{previewContext.getCurrentChatId=()=> 'preview';(await import(prefix+'personal/chat-binding-ui.js')).renderChatBindingPanel();},prefix);
   assert.match(await panel.textContent(),/整个知识库/);
   await panel.locator('.am-binding-details > summary').click();
@@ -115,13 +115,13 @@ const prefix='/scripts/extensions/third-party/Memory/';
   await p.screenshot({path:path.resolve(__dirname,`../../../qa-tools/memory-chat-management-${width}.png`)});
   await p.evaluate(async()=>{previewContext.getCurrentChatId=()=> 'new-actual-chat';await previewContext.eventSource.emit(previewContext.eventTypes.CHAT_CHANGED);});
   await p.waitForFunction(()=>document.querySelector('.am-management-chat-select').value==='new-actual-chat');
-  assert.equal(await p.locator('#hly-kb-list-local > .hly-kb-list-item').count(),0);
+  assert.equal(await p.locator('#hly-kb-list-local > .hly-kb-list-item').count(),1);
   assert.equal(await p.locator('#hly-kb-list-local .am-kb-inactive').evaluate(el=>el.open),false);
   assert.equal(await panel.locator('.am-binding-details').evaluate(el=>el.open),false);
   assert(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth+2),'binding panel fits viewport');
   await p.screenshot({path:path.resolve(__dirname,`../../../qa-tools/memory-bindings-${width}.png`)});
   assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({width,multiBlock:true,multiChat:true,pagesRetainSelection:true,wholeLibrary:true,newChatEmpty:true,managementSelector:true,actualChatUnchanged:true,perChatActivation:true,unbindingSelectedFileOnly:true,inactiveFolded:true,noVectorWrites:true,errors}));
+  console.log(JSON.stringify({width,multiBlock:true,multiChat:true,pagesRetainSelection:true,wholeLibrary:true,unarchivedChatContinues:true,managementSelector:true,actualChatUnchanged:true,perChatActivation:true,unbindingSelectedFileOnly:true,inactiveFolded:true,noVectorWrites:true,errors}));
   await p.close();
  }}finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1}).finally(()=>fs.unlinkSync(temp));

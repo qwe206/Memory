@@ -929,7 +929,7 @@ function _createKbItemElement(id, kb, scope, vectorCount, bindingState) {
         <div class="hly-kb-actions">
             <button type="button" class="am-kb-chunks">查看分块</button>
             <label class="am-kb-enabled">
-                <input type="checkbox" class="hly-kb-toggle"><span>用于此聊天</span>
+                <input type="checkbox" class="hly-kb-toggle"><span>用于此剧情</span>
             </label>
             <details class="am-kb-more"><summary>更多操作</summary><div>
               <button type="button" class="am-kb-bind">绑定聊天</button>
@@ -948,7 +948,8 @@ function _createKbItemElement(id, kb, scope, vectorCount, bindingState) {
     const select = item.querySelector('.hly-kb-item-checkbox'); select.dataset.kbId = id; select.setAttribute('aria-label', `选择知识库：${kb.name}`);
     item.querySelector('.hly-kb-toggle').checked = bindingState.active;
     item.querySelector('.hly-kb-toggle').disabled = !kb.enabled || !getKnowledgeManagementContext().chatId;
-    item.querySelector('.hly-kb-toggle').setAttribute('aria-label', `${kb.name}：在所选聊天启用`);
+    item.querySelector('.hly-kb-toggle').setAttribute('aria-label', `${kb.name}：在所选聊天的剧情中启用`);
+    item.querySelector('.hly-kb-toggle').title = '未归档时接续的聊天共用这段剧情记忆';
     const libraryToggle = item.querySelector('.am-kb-library-toggle');
     libraryToggle.textContent = kb.enabled ? '整体停用知识库' : '恢复知识库';
     libraryToggle.title = '影响所有绑定此知识库的聊天';

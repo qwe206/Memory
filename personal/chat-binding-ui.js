@@ -60,7 +60,7 @@ export function renderChatBindingPanel() {
   if (!panel) {
     panel = document.createElement('fieldset'); panel.className = 'hly-settings-group am-chat-bindings';
     const legend = document.createElement('legend'); legend.textContent = '聊天记忆绑定';
-    panel.innerHTML = '<div class="am-binding-overview"><div><p class="am-binding-current"></p><p class="am-binding-count"></p></div><button type="button" class="am-binding-pick">选择记忆</button></div><p class="am-section-help">绑定后自动用于对应聊天；新聊天从空白记忆开始，新入库内容自动归入当前聊天。</p><div class="am-binding-picker" hidden><p class="am-section-help">在下方勾选知识库，可同时选择局部库和全局库。只要部分内容，请进入“查看分块”。</p><button type="button" class="am-binding-pick-save" disabled>绑定所选知识库</button><span class="am-binding-picked-count" role="status"></span></div><details class="am-binding-details"><summary>管理已绑定记忆</summary><div class="am-binding-list"></div><button type="button" class="am-binding-clear">解除当前聊天的全部绑定</button></details>';
+    panel.innerHTML = '<div class="am-binding-overview"><div><p class="am-binding-current"></p><p class="am-binding-count"></p></div><button type="button" class="am-binding-pick">选择记忆</button></div><p class="am-section-help">归档前换聊天会自动接续当前剧情；归档后新聊天从空白开始。仍可按文件查看、绑定和编辑分块。</p><div class="am-binding-picker" hidden><p class="am-section-help">在下方勾选知识库，可同时选择局部库和全局库。只要部分内容，请进入“查看分块”。</p><button type="button" class="am-binding-pick-save" disabled>绑定所选知识库</button><span class="am-binding-picked-count" role="status"></span></div><details class="am-binding-details"><summary>管理已绑定记忆</summary><div class="am-binding-list"></div><button type="button" class="am-binding-clear">解除当前聊天的全部绑定</button></details>';
     panel.prepend(legend); page.prepend(panel);
     const chooser = document.createElement('div'); chooser.className = 'am-management-chat';
     chooser.innerHTML = '<label for="am-management-chat-select">选择聊天文件</label><div class="am-management-chat-field"><select id="am-management-chat-select" class="am-management-chat-select"></select><button type="button" class="am-management-chat-refresh">刷新</button></div><p class="am-management-chat-status am-section-help" role="status"></p>';
@@ -114,7 +114,10 @@ export function renderChatBindingPanel() {
   panel.querySelector('.am-binding-count').textContent = current.references.length
     ? '已绑定 ' + current.references.length + ' 个知识库 · ' + (pausedCount ? pausedCount + ' 个在此聊天停用' : '自动生效') : '尚未绑定记忆';
   panel.querySelector('.am-binding-pick').disabled = !current.owner || !current.chatId;
-  panel.querySelector('.am-binding-current').textContent = current.chatId === current.actualChatId ? '正在管理当前打开的聊天' : '仅切换管理视图，实际聊天未改变';
+  const storyline = Memory.getMemoryStoryContext().story;
+  panel.querySelector('.am-binding-current').textContent = current.chatId === current.actualChatId
+    ? (storyline?.archived ? '当前剧情已归档，下个新聊天从空白开始' : '当前剧情：未归档时，新聊天自动接续总结和记忆')
+    : '仅切换管理视图，实际聊天未改变';
   panel.querySelector('.am-binding-clear').textContent = '解除所选聊天的全部绑定';
   const list = panel.querySelector('.am-binding-list'); list.replaceChildren();
   for (const ref of current.references) {

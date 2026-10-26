@@ -23,7 +23,7 @@ async function harness(vectorize=false){
  const h={book:{entries:{7:{uid:7,comment:'【敕史局】对话流水总帐',content:append('',1)},9:{content:'unrelated'}}},requests:[],backups:[],vectorize,ingest:async()=>({success:true,count:1})};
  h.chat=Array.from({length:245},()=>({mes:'原始对话',is_user:false}));
  h.bases=[];
- const fixture={...ledger,...names,...recovery,...regeneration,timelineReference:()=>'',notify:{info(){},warning(){},error(){},success(){}},extensionName:'test',extension_settings:{test:{ngmsEnabled:true,historiographySilent:true}},getContext:()=>({characterId:0,chatId:h.chatId || 'original-chat',chat:h.chat,name1:'用户',name2:'角色'}),characters:[],world_names:['book'],
+ const fixture={...ledger,...names,...recovery,...regeneration,getMemoryStoryContext:()=>({offset:0}),resolveMemoryStoryWorldbook:name=>name,noteMemoryStoryProgress:()=>{},captureMemoryStoryState:async()=>null,archiveMemoryStory:()=>{},restoreMemoryStory:()=>({undo(){}}),timelineReference:()=>'',notify:{info(){},warning(){},error(){},success(){}},extensionName:'test',extension_settings:{test:{ngmsEnabled:true,historiographySilent:true}},getContext:()=>({characterId:0,chatId:h.chatId || 'original-chat',chat:h.chat,name1:'用户',name2:'角色'}),characters:[],world_names:['book'],
   loadWorldInfo:async()=>structuredClone(h.book),saveWorldInfo:async(_,book)=>{h.book=structuredClone(book);if(h.failWorldSave){h.failWorldSave=false;return false;}},saveBook:async(_,book)=>{h.book=structuredClone(book)},withLoreLock:async(_,fn)=>fn(),getChatIdentifier:async()=> 'char-preview',
   saveLedgerBackup:async(...args)=>{if(h.failBackup)throw new Error('quota');h.backups.push(args)},
   getPresetPrompts:async()=>[],getMixedOrder:()=>[{type:'conditional',id:'coreContent'}],generateRandomSeed:()=> 'seed',
@@ -141,7 +141,7 @@ test('selected old book is used for progress and writes; missing or ambiguous bo
 test('old book selection validates content, scope and progress and invalidates earlier previews',async()=>{
  const ctx={characterId:0,chatId:'A',chat:Array(200).fill({mes:'a'})},settings={test:{}};
  let book={entries:{7:{comment:'【敕史局】对话流水总帐',content:oldLedger()}}},saved=0;
- const fixture={...names,...ledger,...recovery,getContext:()=>ctx,extension_settings:settings,extensionName:'test',world_names:['旧书-8'],loadWorldInfo:async()=>structuredClone(book),saveSettingsDebounced:()=>{saved++;}};
+ const fixture={...names,...ledger,...recovery,getMemoryStoryContext:()=>({offset:0}),setMemoryStoryWorldbook:()=>{},getContext:()=>ctx,extension_settings:settings,extensionName:'test',world_names:['旧书-8'],loadWorldInfo:async()=>structuredClone(book),saveSettingsDebounced:()=>{saved++;}};
  globalThis.__bookSelection=fixture;
  let source=await read('personal/legacy-book.js'),ast=parse(source,{ecmaVersion:'latest',sourceType:'module'});
  for(const node of [...ast.body].reverse())if(node.type==='ImportDeclaration')source=source.slice(0,node.start)+node.specifiers.map(spec=>`const ${spec.local.name}=globalThis.__bookSelection[${JSON.stringify(spec.imported.name)}];`).join('\n')+source.slice(node.end);
@@ -224,7 +224,7 @@ test('regeneration keeps original input, adds first draft only for supplied inst
  h.settings.historiographySilent=false;
  const pending=h.module.executeManualSummary(91,92,true);await new Promise(resolve=>setImmediate(resolve));
  await h.regenerate({requirements:'保留关键对话',firstDraft:h.firstDraft});request=h.requests.at(-1);
- assert(request.some(m=>m.content.includes('【第 91 楼】')));assert(request.at(-1).content.includes('保留关键对话'));
+ assert(request.some(m=>m.content.includes('【剧情第 91 楼｜来源文件 "original-chat"｜本地第 91 楼】')));assert(request.at(-1).content.includes('保留关键对话'));
  h.cancel();assert.equal(await pending,false);assert.equal(h.book.entries[7].content,original);
 });
 
