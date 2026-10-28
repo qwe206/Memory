@@ -91,7 +91,7 @@ export async function compatibleWriteToLorebook(targetLorebookName, entryComment
 
     try {
         console.log('[兼容写入模块] AmilyHelper 不可用或失败，使用传统逻辑...');
-        let bookData = await loadWorldInfo(targetLorebookName);
+        let bookData = structuredClone(await loadWorldInfo(targetLorebookName));
 
         if (!bookData) {
             console.warn(`[传统逻辑] 世界书《${targetLorebookName}》不存在，将自动创建。`);
@@ -102,7 +102,7 @@ export async function compatibleWriteToLorebook(targetLorebookName, entryComment
                 refreshWorldbookListOnly(); // 刷新UI
             }
             document.dispatchEvent(new CustomEvent('amily-lorebook-created', { detail: { bookName: targetLorebookName } }));
-            bookData = await loadWorldInfo(targetLorebookName);
+            bookData = structuredClone(await loadWorldInfo(targetLorebookName));
             if (!bookData) throw new Error(`创建并加载世界书《${targetLorebookName}》失败。`);
         }
 
@@ -126,7 +126,7 @@ export async function compatibleWriteToLorebook(targetLorebookName, entryComment
             });
         }
 
-        await saveWorldInfo(targetLorebookName, bookData, true);
+        if (await saveWorldInfo(targetLorebookName, bookData, true) === false) throw new Error('世界书保存失败，原总结进度保留。');
         console.log(`[传统逻辑] 成功将条目 "${entryComment}" 写入《${targetLorebookName}》。`);
 
         reloadEditor(targetLorebookName);

@@ -41,6 +41,11 @@ const prefix='/scripts/extensions/third-party/Memory/';
   await p.goto('http://127.0.0.1:8773/');await p.locator('.am-app-header').waitFor({state:'attached'});
   await p.locator('#amily2_drawer_icon').click();
   if(await p.locator('.am-menu-toggle').getAttribute('aria-expanded')==='false')await p.locator('.am-menu-toggle').click();
+  await p.locator('#am-app-sidebar [data-route="kb-retrieval"]').click();
+  assert.equal(await p.locator('#hly-independent-chat-memory-enabled').count(),0);
+  await p.getByText('未归档时，新聊天接续当前总结和记忆；归档后，新聊天从空白开始。',{exact:true}).waitFor({state:'visible'});
+  await p.screenshot({path:path.resolve(__dirname,`../../../qa-tools/simple-memory-settings-${width}.png`)});
+  if(await p.locator('.am-menu-toggle').getAttribute('aria-expanded')==='false')await p.locator('.am-menu-toggle').click();
   await p.locator('#am-app-sidebar [data-route="kb-knowledge-bases"]').click();
   const change=async id=>p.evaluate(async({prefix,id})=>{
    previewContext.chatId=id;previewContext.getCurrentChatId=()=>id;SillyTavern.getContext=()=>previewContext;

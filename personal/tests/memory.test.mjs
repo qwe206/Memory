@@ -14,6 +14,9 @@ const features=await load(await read('personal/features.js'));
 const names=await load(await read('personal/names.js'));
 const recovery=await load(await read('personal/recovery.js'));
 const regeneration=await load(await read('personal/regeneration.js'));
+const chatSource=await load(await read('personal/story-chat-source.js'));
+const storyBindingURL='data:text/javascript;base64,'+Buffer.from(await read('personal/chat-memory-bindings.js')).toString('base64');
+const story=await load((await read('personal/story-memory.js')).replace("'./chat-memory-bindings.js'",JSON.stringify(storyBindingURL)));
 function append(content,start){for(let i=0;i<3;i++)content=ledger.appendMicroSummaryBlock(content,`new-${start+i*30}`,start+i*30,start+i*30+29,128000).content;return content;}
 function oldLedger({placeholder=false}={}) {
  const prior=placeholder ? 'AI你好，以上内容为rag向量化后注入的相关剧情，以下内容是已发生的剧情回顾。\n\n（前60楼聊天记录总结已由翰林院向量化注入。）\n\n【以下内容为60楼以后的总结内容】\n\n---\n\nold-61-120' : '以下内容是【1楼-120楼】已发生的剧情回顾。\n\n---\n\nold-1-60\n\n===【截止至第60楼的宏史卷】===\n\nold-61-120';
@@ -23,7 +26,7 @@ async function harness(vectorize=false){
  const h={book:{entries:{7:{uid:7,comment:'【敕史局】对话流水总帐',content:append('',1)},9:{content:'unrelated'}}},requests:[],backups:[],vectorize,ingest:async()=>({success:true,count:1})};
  h.chat=Array.from({length:245},()=>({mes:'原始对话',is_user:false}));
  h.bases=[];
- const fixture={...ledger,...names,...recovery,...regeneration,getMemoryStoryContext:()=>({offset:0}),resolveMemoryStoryWorldbook:name=>name,noteMemoryStoryProgress:()=>{},captureMemoryStoryState:async()=>null,archiveMemoryStory:()=>{},restoreMemoryStory:()=>({undo(){}}),timelineReference:()=>'',notify:{info(){},warning(){},error(){},success(){}},extensionName:'test',extension_settings:{test:{ngmsEnabled:true,historiographySilent:true}},getContext:()=>({characterId:0,chatId:h.chatId || 'original-chat',chat:h.chat,name1:'用户',name2:'角色'}),characters:[],world_names:['book'],
+ const fixture={...ledger,...names,...recovery,...regeneration,...story,...chatSource,syncMemoryStoryProgress:()=>null,getMemoryStoryContext:()=>({offset:0}),resolveMemoryStoryWorldbook:name=>name,noteMemoryStoryProgress:()=>{},captureMemoryStoryState:async()=>null,archiveMemoryStory:()=>{},restoreMemoryStory:()=>({undo(){}}),timelineReference:()=>'',notify:{info(){},warning(){},error(){},success(){}},extensionName:'test',extension_settings:{test:{ngmsEnabled:true,historiographySilent:true}},getContext:()=>({characterId:0,chatId:h.chatId || 'original-chat',chat:h.chat,name1:'用户',name2:'角色'}),characters:[],world_names:['book'],
   loadWorldInfo:async()=>structuredClone(h.book),saveWorldInfo:async(_,book)=>{h.book=structuredClone(book);if(h.failWorldSave){h.failWorldSave=false;return false;}},saveBook:async(_,book)=>{h.book=structuredClone(book)},withLoreLock:async(_,fn)=>fn(),getChatIdentifier:async()=> 'char-preview',
   saveLedgerBackup:async(...args)=>{if(h.failBackup)throw new Error('quota');h.backups.push(args)},
   getPresetPrompts:async()=>[],getMixedOrder:()=>[{type:'conditional',id:'coreContent'}],generateRandomSeed:()=> 'seed',
@@ -224,7 +227,7 @@ test('regeneration keeps original input, adds first draft only for supplied inst
  h.settings.historiographySilent=false;
  const pending=h.module.executeManualSummary(91,92,true);await new Promise(resolve=>setImmediate(resolve));
  await h.regenerate({requirements:'保留关键对话',firstDraft:h.firstDraft});request=h.requests.at(-1);
- assert(request.some(m=>m.content.includes('【剧情第 91 楼｜来源文件 "original-chat"｜本地第 91 楼】')));assert(request.at(-1).content.includes('保留关键对话'));
+ assert(request.some(m=>m.content.includes('【来源文件 "original-chat"｜第 91 楼】')));assert(request.at(-1).content.includes('保留关键对话'));
  h.cancel();assert.equal(await pending,false);assert.equal(h.book.entries[7].content,original);
 });
 

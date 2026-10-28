@@ -3,7 +3,7 @@ import { pluginAuthStatus } from '../utils/auth.js';
 import { extension_settings, getContext } from '/scripts/extensions.js';
 import { loadWorldInfo } from '/scripts/world-info.js';
 import { extensionName } from '../utils/settings.js';
-import { getTargetLorebookName } from '../core/historiographer.js';
+import { getTargetLorebookName, readGoldenLedgerProgress } from '../core/historiographer.js';
 import { parseLedgerForRefinement } from './ledger.js';
 import { icon } from './icons.js';
 import { organizeWorkspace } from './organize.js';
@@ -219,9 +219,11 @@ export function mountWorkspace(root) {
       if (!row) { status.textContent = bookName ? '当前世界书还没有总结。' : '当前对话尚未关联世界书。'; return; }
       const parsed = parseLedgerForRefinement(row.content);
       if (!parsed.valid) { status.textContent = '旧总结格式需要单独检查。请先导出世界书备份。'; return; }
-      status.textContent = `${bookName} · 已总结至 ${parsed.totalFloors} 楼`;
+      const progress = await readGoldenLedgerProgress(bookName);
+      if (token !== readToken) return;
+      status.textContent = `${bookName} · 当前聊天已总结至 ${progress} 楼`;
       if (parsed.missingHistoryThrough) status.textContent += ` · 前 ${parsed.missingHistoryThrough} 楼仅保留向量引用，原正文未在书中`;
-      for (const [title, text] of [['最新大总结', parsed.latest?.text], ['历史大总结', parsed.history.map(item => `${item.startFloor}–${item.endFloor} 楼\n${item.text}`).join('\n\n')], ['后续小总结', parsed.pendingMicroContent]]) {
+      for (const [title, text] of [['最新大总结', parsed.latest?.text], ['历史大总结', parsed.history.map(item => item.fileScoped ? item.text : `${item.startFloor}–${item.endFloor} 楼\n${item.text}`).join('\n\n')], ['后续小总结', parsed.pendingMicroContent]]) {
         const details = document.createElement('details'); details.open = title === '最新大总结';
         const summary = document.createElement('summary'); summary.textContent = title;
         const body = document.createElement('pre'); body.textContent = text || '暂无内容。'; details.append(summary, body); output.append(details);

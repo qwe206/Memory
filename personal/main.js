@@ -25,10 +25,10 @@ const afterMessage = createBackgroundMemoryQueue({
   await checkAndTriggerAutoSummary();
   if (pluginAuthStatus.authorized && chatKey(getContext()) === initialChat) await executeAutoHide();
  },
- onError(error) { console.error('[Memory 记忆]', error); },
+ onError(error) { console.error('[Memory 记忆]', error); toastr.warning(`后台总结未完成，待处理进度已保留：${error.message}`); },
 });
 const afterChatChanged = createBackgroundMemoryQueue({
- async run() { if (pluginAuthStatus.authorized) { getMemoryStoryContext(); await executeAutoHide(); } },
+ async run() { if (pluginAuthStatus.authorized) { getMemoryStoryContext(); afterMessage(); await executeAutoHide(); } },
  onError(error) { console.error('[Memory 楼层管理]', error); },
 });
 async function start() {

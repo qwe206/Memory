@@ -1,9 +1,9 @@
 export const PROGRESS_SEAL_REGEX =
   /本条勿动【前(\d+)楼总结已完成】否则后续总结无法进行。[\t \r\n]*$/;
-export const CHAPTER_SEAL_REGEX = /【前(\d+)楼篇章编撰已完成】/;
+export const CHAPTER_SEAL_REGEX = /【(?:前(\d+)楼|以上小总结)篇章编撰已完成】/;
 export const MICRO_SUMMARY_HEADING_REGEX = /【(\d+)楼至(\d+)楼详细总结记录】/g;
 export const RESERVED_LEDGER_STRUCTURE_REGEX =
-  /本条勿动【前\d+楼总结已完成】否则后续总结无法进行。?|【前\d+楼篇章编撰已完成】|【\d+楼至\d+楼详细总结记录】/u;
+  /本条勿动【前\d+楼总结已完成】否则后续总结无法进行。?|【(?:前\d+楼|以上小总结)篇章编撰已完成】|【\d+楼至\d+楼详细总结记录】|<!--MemoryFiles\s/u;
 export const LEGACY_VECTORIZED_PLACEHOLDER_REGEX =
   /AI你好，以上内容为rag向量化后注入的相关剧情|前\d+楼聊天记录总结已由翰林院向量化注入|【以下内容为\d+楼以后的总结内容】/iu;
 export const REFINEMENT_INPUT_RESERVE_TOKENS = 4e3;
@@ -82,9 +82,10 @@ export function parseLedgerForRefinement(content) {
       pendingBlocks: [],
       requiresHistoricalRecovery: !1,
     };
+  const fileProgress = source.match(/<!--MemoryFiles \{[^\n]*\} -->/)?.[0] || '';
   const progressSeal = progressSealMatch[0],
     totalFloors = Number.parseInt(progressSealMatch[1], 10) || 0,
-    withoutProgress = source.replace(PROGRESS_SEAL_REGEX, "").trim(),
+    withoutProgress = source.replace(PROGRESS_SEAL_REGEX, "").replace(fileProgress, '').trim(),
     chapterSealMatch = withoutProgress.match(CHAPTER_SEAL_REGEX);
   let compiledFloor = 0,
     existingRollingContent = "",
@@ -100,20 +101,22 @@ export function parseLedgerForRefinement(content) {
           : ""));
   }
   const history = [];
-  existingRollingContent = existingRollingContent.replace(/【历史大总结｜(\d+)-(\d+)楼】\n([\s\S]*?)\n【历史大总结结束】/gu, (_, start, end, text) => {
-    history.push({ startFloor: Number(start), endFloor: Number(end), text: text.trim() }); return '';
+  existingRollingContent = existingRollingContent.replace(/【历史大总结(?:｜(\d+)-(\d+)楼)?】\n([\s\S]*?)\n【历史大总结结束】/gu, (_, start, end, text) => {
+    history.push({ startFloor: Number(start) || 0, endFloor: Number(end) || 0, text: text.trim(), fileScoped: !start, sources: fileSummarySources(text) }); return '';
   }).trim();
   const oldPrefix = existingRollingContent.match(/^AI你好，以上内容为rag向量化后注入的相关剧情，以下内容是已发生的剧情回顾。\s*（前(\d+)楼聊天记录总结已由翰林院向量化注入。\s*）\s*【以下内容为\1楼以后的总结内容】\s*(?:---\s*)?/u);
   const legacyPrefix = oldPrefix?.[0]?.trim() || '';
   const missingHistoryThrough = oldPrefix ? Number(oldPrefix[1]) : 0;
   if (oldPrefix) existingRollingContent = existingRollingContent.slice(oldPrefix[0].length).trim();
-  const latestHeading = existingRollingContent.match(/^【最新大总结｜(\d+)-(\d+)楼】\n/u);
-  let latest = compiledFloor > 0 ? {
-    startFloor: latestHeading ? Number(latestHeading[1]) : 1,
+  const latestHeading = existingRollingContent.match(/^【最新大总结(?:｜(\d+)-(\d+)楼)?】\n/u);
+  let latest = compiledFloor > 0 || latestHeading ? {
+    startFloor: latestHeading ? Number(latestHeading[1]) || 0 : 1,
     endFloor: compiledFloor,
     text: latestHeading ? existingRollingContent.slice(latestHeading[0].length).trim() : existingRollingContent.replace(/^以下内容是【1楼-\d+楼】已发生(?:剧情的滚动宏史卷|的剧情回顾)。\s*---\s*/u, '').trim(),
+    fileScoped: Boolean(latestHeading && !latestHeading[1]),
+    sources: fileSummarySources(existingRollingContent),
   } : null;
-  let malformedLegacy = Boolean(missingHistoryThrough && missingHistoryThrough >= compiledFloor);
+  let malformedLegacy = Boolean(missingHistoryThrough && compiledFloor > 0 && missingHistoryThrough >= compiledFloor);
   if (latest && !latestHeading) {
     const parts = [...latest.text.matchAll(/^===【截止至第(\d+)楼的宏史卷】===[ \t]*$/gmu)];
     let from = missingHistoryThrough + 1, cursor = 0;
@@ -144,6 +147,7 @@ export function parseLedgerForRefinement(content) {
     reason: requiresHistoricalRecovery ? (malformedLegacy ? 'invalid-legacy-range' : 'legacy-vector-placeholder') : "",
     source: source,
     progressSeal: progressSeal,
+    fileProgress,
     totalFloors: totalFloors,
     compiledFloor: compiledFloor,
     existingRollingContent: latest?.text || "",
@@ -186,11 +190,10 @@ export function partitionPendingMicroContent(parsedLedger, selectedBlockCount) {
   return {
     selectedBlockCount: count,
     selectedContent: source.slice(0, boundary),
+    sources: fileSummarySources(source.slice(0, boundary)),
     remainingContent: source.slice(boundary),
-    selectedEndFloor:
-      Number.parseInt(blocks[count - 1]?.endFloor, 10) ||
-      Number.parseInt(parsed.compiledFloor, 10) ||
-      0,
+    selectedEndFloor: Math.max(Number.parseInt(parsed.compiledFloor, 10) || 0,
+      ...blocks.slice(0, count).map(block => Number.parseInt(block.endFloor, 10) || 0)),
   };
 }
 export function buildRollingRefinementInput(parsedLedger, selectedBlockCount = parsedLedger?.pendingBlockCount) {
@@ -198,13 +201,27 @@ export function buildRollingRefinementInput(parsedLedger, selectedBlockCount = p
   return partitionPendingMicroContent(parsedLedger, selectedBlockCount).selectedContent.trim();
 }
 
-export function renderIndependentLedger({ latest, history = [], pending = '', progressSeal, legacyPrefix = '' }) {
+export function fileSummarySources(content) {
+  const sources = [...String(content || '').matchAll(/^来源聊天文件：(\"(?:\\.|[^\"\\])*\")；本地第(\d+)至(\d+)楼[。；]/gm)]
+    .map(match => ({ chatFile: JSON.parse(match[1]), startFloor: Number(match[2]), endFloor: Number(match[3]) }));
+  return [...new Map(sources.map(source => [JSON.stringify(source), source])).values()];
+}
+export function formatFileSummarySources(sources = []) {
+  return sources.map(source => `来源聊天文件：${JSON.stringify(source.chatFile)}；本地第${source.startFloor}至${source.endFloor}楼。`).join('\n');
+}
+
+export function renderIndependentLedger({ latest, history = [], pending = '', progressSeal, legacyPrefix = '', fileProgress = '' }) {
   if (!latest?.text?.trim() || !progressSeal) return '';
-  const sections = [`【最新大总结｜${latest.startFloor}-${latest.endFloor}楼】\n${latest.text.trim()}`];
+  const body = block => {
+    const text = block.text.trim(), provenance = formatFileSummarySources(block.sources);
+    return block.fileScoped && provenance && !text.startsWith(provenance) ? provenance + '\n' + text : text;
+  };
+  const sections = [`${latest.fileScoped ? '【最新大总结】' : `【最新大总结｜${latest.startFloor}-${latest.endFloor}楼】`}\n${body(latest)}`];
   if (legacyPrefix) sections.unshift(legacyPrefix.trim());
-  for (const block of history) sections.push(`【历史大总结｜${block.startFloor}-${block.endFloor}楼】\n${block.text.trim()}\n【历史大总结结束】`);
-  sections.push(`【前${latest.endFloor}楼篇章编撰已完成】`);
+  for (const block of history) sections.push(`${block.fileScoped ? '【历史大总结】' : `【历史大总结｜${block.startFloor}-${block.endFloor}楼】`}\n${body(block)}\n【历史大总结结束】`);
+  sections.push(latest.fileScoped ? '【以上小总结篇章编撰已完成】' : `【前${latest.endFloor}楼篇章编撰已完成】`);
   if (pending.trim()) sections.push(pending.trim());
+  if (fileProgress) sections.push(fileProgress);
   sections.push(progressSeal);
   return sections.join('\n\n');
 }
@@ -214,10 +231,10 @@ export function buildRollingLedgerContent(summary, parsedLedger, selectedBlockCo
   const partition = partitionPendingMicroContent(parsed, selectedBlockCount);
   if (!summary?.trim() || !partition.selectedBlockCount || !parsed.progressSeal) return '';
   return renderIndependentLedger({
-    latest: { startFloor: parsed.pendingBlocks?.[0]?.startFloor || parsed.compiledFloor + 1, endFloor: partition.selectedEndFloor, text: summary },
+    latest: { startFloor: parsed.pendingBlocks?.[0]?.startFloor || parsed.compiledFloor + 1, endFloor: partition.selectedEndFloor, text: summary, fileScoped: Boolean(parsed.fileProgress), sources: partition.sources },
     history: [...(parsed.history || []), ...(parsed.latest?.text ? [parsed.latest] : [])],
     pending: partition.remainingContent, progressSeal: parsed.progressSeal,
-    legacyPrefix: parsed.legacyPrefix,
+    legacyPrefix: parsed.legacyPrefix, fileProgress: parsed.fileProgress,
   });
 }
 export function appendMicroSummaryBlock(
