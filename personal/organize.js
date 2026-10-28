@@ -100,8 +100,6 @@ export function organizeWorkspace(root) {
   // Advanced controls remain discoverable on their existing pages, closed initially.
   const sort = root.querySelector('#hly-super-sort-enabled')?.closest('.hly-control-block');
   fold(sort, '进阶排序');
-  const oldIsolation = root.querySelector('#hly-independent-chat-memory-enabled')?.closest('.hly-control-block');
-  if (oldIsolation) oldIsolation.hidden = true; // Kept for legacy settings bindings; retrieval now always follows chat bindings.
   for (const [id,label] of [['hly-rerank-api-mode','重排序连接'],['hly-chunk-size','分块与检索参数'],['hly-query-preprocessing-enabled','检索内容处理'],['hly-injection-source-selector','注入位置与模板'],['hly-retrieval-notify','通知'],['amily2_keystore_mode','进阶：密钥存储']]) fold(fieldset(id),label);
   const priority = root.querySelector('#hly-rerank-tab > fieldset:last-of-type');
   if (priority && !priority.closest('details')) {

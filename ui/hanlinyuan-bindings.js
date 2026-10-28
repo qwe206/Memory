@@ -99,10 +99,6 @@ function bindAutoSaveEvents() {
 
         updateAndSaveSetting(key, value);
 
-        // 如果更改了影响面板状态的设置（如独立聊天记忆开关），则立即刷新
-        if (key === 'retrieval.independentChatMemoryEnabled') {
-            updatePanelStatus();
-        }
     });
 }
 
@@ -635,10 +631,6 @@ function loadSettingsToUI() {
         document.getElementById('hly-query-preprocessing-enabled').checked = settings.queryPreprocessing.enabled;
     }
 
-    // 新增：加载独立聊天记忆开关状态
-    if (settings.retrieval.independentChatMemoryEnabled !== undefined) {
-        document.getElementById('hly-independent-chat-memory-enabled').checked = settings.retrieval.independentChatMemoryEnabled;
-    }
     refreshRerankProfile();
 }
 

@@ -22,7 +22,7 @@ import {
 } from './rag-api.js';
 import { superSort } from './super-sorter.js';
 import { readVectorChunks } from '../personal/vector-reader.js';
-import { enterStory, storyForChat, storyWorldbook, archiveStory, restoreStory, setStoryBindings } from '../personal/story-memory.js';
+import { enterStory, storyForChat, storyWorldbook, archiveStory, restoreStory, setStoryBindings, syncStoryProgress, completeStorySources } from '../personal/story-memory.js';
 import { bindingOwner, bindingKey, chatBindings, updateChatBindings, restrictBasesToChat, filterBoundChunks, knowledgeBindingState, setChatBindingEnabled } from '../personal/chat-memory-bindings.js';
 import { writeUniqueVectorChunks } from '../personal/vector-writes.js';
 import { migrateRagPrompts } from '../personal/prompt-style.js';
@@ -168,6 +168,7 @@ export {
     getKnowledgeBindingState,
     setKnowledgeBindingEnabled,
     getMemoryStoryContext,
+    syncMemoryStoryProgress,
     resolveMemoryStoryWorldbook,
     setMemoryStoryWorldbook,
     noteMemoryStoryProgress,
@@ -640,13 +641,7 @@ async function getCollectionId() {
         return lockedCollectionId;
     }
 
-    const independentMemoryEnabled = settings.retrieval.independentChatMemoryEnabled;
-
-    if (independentMemoryEnabled) {
-        return getChatId();
-    } else {
-        return await getDynamicCollectionId();
-    }
+    return await getDynamicCollectionId();
 }
 
 
@@ -700,7 +695,7 @@ function getChatMemoryBindingContext(targetChatId = getChatId()) {
     const live = SillyTavern.getContext();
     const owner = bindingOwner(live), chatId = targetChatId;
     const previousStory = storyForChat(settings.chatMemoryBindings, owner, getChatId());
-    const previousLength = previousStory?.segments[getChatId()]?.length;
+    const previousLength = previousStory?.files?.[getChatId()]?.length;
     const previousActive = settings.chatMemoryBindings.activeStories?.[owner];
     enterStory(settings.chatMemoryBindings, owner, getChatId(), live.chat?.length || 0);
     if (!previousStory || previousLength !== (live.chat?.length || 0) || previousActive !== settings.chatMemoryBindings.activeStories?.[owner]) saveSettings();
@@ -731,7 +726,7 @@ function clearChatMemoryBindings(owner, chatId) {
 function getMemoryStoryContext() {
     const { owner, chatId } = getChatMemoryBindingContext();
     const story = storyForChat(settings.chatMemoryBindings, owner, chatId);
-    return { story, offset: story?.segments[chatId]?.offset || 0 };
+    return { story, chatFile: chatId };
 }
 
 function resolveMemoryStoryWorldbook(fallback) {
@@ -742,14 +737,23 @@ function resolveMemoryStoryWorldbook(fallback) {
 function setMemoryStoryWorldbook(name) {
     const { story } = getMemoryStoryContext();
     if (!story) throw new Error('请先打开聊天。');
+    if (story.worldbook !== name) for (const file of Object.values(story.files || {})) { file.initialized = false; file.summarizedThrough = 0; }
     if (name) story.worldbook = name;
     else delete story.worldbook;
     saveSettings();
 }
 
-function noteMemoryStoryProgress(progress) {
+function syncMemoryStoryProgress(content) {
     const { story } = getMemoryStoryContext();
-    if (story) story.progress = progress;
+    if (story) { syncStoryProgress(story, content); saveSettings(); }
+    return story;
+}
+
+function noteMemoryStoryProgress(progress, sources = []) {
+    const { story } = getMemoryStoryContext();
+    if (story) {
+        completeStorySources(story, sources);
+    }
     saveSettings();
 }
 
