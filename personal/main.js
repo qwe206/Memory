@@ -11,6 +11,7 @@ import { initialize, getMemoryStoryContext } from '../core/rag-processor.js';
 import { checkAndTriggerAutoSummary, getTargetLorebookName } from '../core/historiographer.js';
 import { loadWorldInfo } from '/scripts/world-info.js';
 import { findActiveSummary } from './names.js';
+import { stripSummarySources } from './ledger.js';
 import { executeAutoHide } from '../core/autoHideManager.js';
 import { applyPersonalFeaturePolicy } from './features.js';
 import { migrateMemoryPrompts } from './prompt-style.js';
@@ -51,7 +52,7 @@ async function start() {
    if (name && name !== characterBook) {
     const book = await loadWorldInfo(name);
     if (chatKey(getContext()) !== initialChat) return;
-    const content = findActiveSummary(book)?.content;
+    const content = stripSummarySources(findActiveSummary(book)?.content);
     if (content) setExtensionPrompt('MEMORY_STORY_SUMMARY', `以下是当前剧情已发生的总结：\n${content}`, 1, 2, false, 0);
    }
   }

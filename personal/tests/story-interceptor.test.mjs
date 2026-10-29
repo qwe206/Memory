@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 const {parse} = createRequire(import.meta.url)('acorn');
+const {stripSummarySources}=await import('data:text/javascript;base64,'+Buffer.from(await fs.readFile(new URL('../ledger.js',import.meta.url),'utf8')).toString('base64'));
 const main = await fs.readFile(new URL('../main.js',import.meta.url),'utf8');
 const manifest = JSON.parse(await fs.readFile(new URL('../../manifest.json',import.meta.url),'utf8'));
 const tree = parse(main,{ecmaVersion:'latest',sourceType:'module'});
@@ -17,7 +18,7 @@ test('Memory registers its own host generation interceptor without replacing the
 test('the registered interceptor injects continued-story summary and runs memory retrieval independently',async()=>{
   let chatId='C',retrievals=0,authorized=true,archived=false;
   const prompts=[];
-  const fixture={window:{hanlinyuanRagProcessor:{rearrangeChat:async()=>{retrievals++;}}},
+  const fixture={stripSummarySources,window:{hanlinyuanRagProcessor:{rearrangeChat:async()=>{retrievals++;}}},
     setExtensionPrompt:(key,value)=>prompts.push({key,value}),pluginAuthStatus:{get authorized(){return authorized;}},
     chatKey:context=>context.chatId,getContext:()=>({chatId,characterId:0,characters:[{data:{extensions:{world:'A-book'}}}]}),
     getMemoryStoryContext:()=>({story:{worldbook:'B-book',archived}}),getTargetLorebookName:async()=> 'B-book',
