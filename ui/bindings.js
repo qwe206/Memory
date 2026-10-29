@@ -715,7 +715,7 @@ export function bindModalEvents() {
         .off("click.amily2.manual_command")
         .on(
             "click.amily2.manual_command",
-            "#amily2_unhide_all_button, #amily2_manual_hide_confirm, #amily2_manual_unhide_confirm",
+            "#amily2_unhide_all_button, #amily2_hide_summarized_button, #amily2_manual_hide_confirm, #amily2_manual_unhide_confirm",
             async function () {
                 if (!pluginAuthStatus.authorized) return;
 
@@ -726,6 +726,10 @@ export function bindModalEvents() {
                 switch (buttonId) {
                     case 'amily2_unhide_all_button':
                         commandType = 'unhide_all';
+                        break;
+
+                    case 'amily2_hide_summarized_button':
+                        commandType = 'hide_summarized';
                         break;
 
                     case 'amily2_manual_hide_confirm':
@@ -746,7 +750,10 @@ export function bindModalEvents() {
                 }
 
                 if (commandType) {
-                    await executeManualCommand(commandType, params);
+                    const button = $(this); button.prop('disabled', true);
+                    try { await executeManualCommand(commandType, params); }
+                    catch (error) { toastr.error(error.message, '楼层操作未完成'); }
+                    finally { button.prop('disabled', false); }
                 }
             }
         );

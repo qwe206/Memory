@@ -100,6 +100,22 @@ export async function executeManualCommand(commandType, params = {}) {
     let commandString = '';
 
     switch (commandType) {
+        case 'hide_summarized': {
+            const context = getContext(), initialChat = chatKey(context), revision = getRecoveryRevision();
+            if (!context.chat.length) { toastr.info('当前聊天没有可隐藏的楼层。'); return; }
+            const bookName = await getTargetLorebookName();
+            if (!bookName) { toastr.info('请先选择总结世界书。'); return; }
+            const progress = await readGoldenLedgerProgress(bookName);
+            if (isMemoryRecovering() || revision !== getRecoveryRevision() || initialChat !== chatKey(getContext())) {
+                toastr.info('聊天或归档状态已变化，本次未执行隐藏。'); return;
+            }
+            if (!Number.isInteger(progress) || progress < 0) throw new Error('世界书总结进度无效，未隐藏楼层。');
+            const count = Math.min(getContext().chat.length, progress);
+            if (!count) { toastr.info('世界书中还没有已总结的楼层。'); return; }
+            commandString = `/hide 0-${count - 1}`;
+            break;
+        }
+
         case 'unhide_all': {
             const chatLength = getContext().chat.length;
             if (chatLength > 0) {
