@@ -22,7 +22,7 @@ import {
 } from './rag-api.js';
 import { superSort } from './super-sorter.js';
 import { readVectorChunks } from '../personal/vector-reader.js';
-import { enterStory, storyForChat, storyWorldbook, archiveStory, restoreStory, setStoryBindings, syncStoryProgress, completeStorySources } from '../personal/story-memory.js';
+import { enterStory, storyForChat, storyWorldbook, archiveStory, restoreStory, setStoryBindings } from '../personal/story-memory.js';
 import { bindingOwner, bindingKey, chatBindings, updateChatBindings, restrictBasesToChat, filterBoundChunks, knowledgeBindingState, setChatBindingEnabled } from '../personal/chat-memory-bindings.js';
 import { writeUniqueVectorChunks } from '../personal/vector-writes.js';
 import { migrateRagPrompts } from '../personal/prompt-style.js';
@@ -168,10 +168,8 @@ export {
     getKnowledgeBindingState,
     setKnowledgeBindingEnabled,
     getMemoryStoryContext,
-    syncMemoryStoryProgress,
     resolveMemoryStoryWorldbook,
     setMemoryStoryWorldbook,
-    noteMemoryStoryProgress,
     captureMemoryStoryState,
     archiveMemoryStory,
     restoreMemoryStory,
@@ -737,25 +735,15 @@ function resolveMemoryStoryWorldbook(fallback) {
 function setMemoryStoryWorldbook(name) {
     const { story } = getMemoryStoryContext();
     if (!story) throw new Error('请先打开聊天。');
-    if (story.worldbook !== name) for (const file of Object.values(story.files || {})) { file.initialized = false; file.summarizedThrough = 0; }
+
     if (name) story.worldbook = name;
     else delete story.worldbook;
     saveSettings();
 }
 
-function syncMemoryStoryProgress(content) {
-    const { story } = getMemoryStoryContext();
-    if (story) { syncStoryProgress(story, content); saveSettings(); }
-    return story;
-}
 
-function noteMemoryStoryProgress(progress, sources = []) {
-    const { story } = getMemoryStoryContext();
-    if (story) {
-        completeStorySources(story, sources);
-    }
-    saveSettings();
-}
+
+
 
 async function captureMemoryStoryState() {
     const { story } = getMemoryStoryContext();

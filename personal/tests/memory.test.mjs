@@ -227,7 +227,7 @@ test('regeneration keeps original input, adds first draft only for supplied inst
  h.settings.historiographySilent=false;
  const pending=h.module.executeManualSummary(91,92,true);await new Promise(resolve=>setImmediate(resolve));
  await h.regenerate({requirements:'保留关键对话',firstDraft:h.firstDraft});request=h.requests.at(-1);
- assert(request.some(m=>m.content.includes('【来源文件 "original-chat"｜第 91 楼】')));assert(request.at(-1).content.includes('保留关键对话'));
+ assert(request.some(m=>m.content.includes('【第 91 楼】')));assert(request.at(-1).content.includes('保留关键对话'));
  h.cancel();assert.equal(await pending,false);assert.equal(h.book.entries[7].content,original);
 });
 

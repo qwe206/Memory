@@ -1,6 +1,6 @@
 import { bindingKey } from './chat-memory-bindings.js';
 
-/** Files share a story until it is archived. Progress always belongs to a file. */
+/** Files share memory until the story is archived; summary progress stays in the worldbook. */
 export function enterStory(state, owner, chatId, length = 0, id = () => `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`) {
   if (!owner || !chatId) return null;
   state.stories ||= {}; state.storyChats ||= {}; state.activeStories ||= {};
@@ -17,8 +17,7 @@ export function enterStory(state, owner, chatId, length = 0, id = () => `${Date.
   }
   ensureStoryFiles(story);
   if (!Object.hasOwn(story.files, chatId)) {
-    const file = { length: 0, summarizedThrough: 0 };
-    if (!Object.keys(story.files).length) file.legacyOffset = 0;
+    const file = { length: 0 };
     Object.defineProperty(story.files, chatId, { value: file, enumerable: true, writable: true, configurable: true });
   }
   story.files[chatId].length = Math.max(story.files[chatId].length, length);
@@ -31,64 +30,8 @@ export function ensureStoryFiles(story) {
   if (story.files) return;
   story.files = {};
   for (const [chatFile, segment] of Object.entries(story.segments || {})) {
-    let through = 0;
-    for (const range of segment.ranges || []) {
-      if (range.localStart > through + 1 || range.summarizedTo < range.localStart) break;
-      through = range.summarizedTo ?? through;
-      if (through < range.localEnd) break;
-    }
-    story.files[chatFile] = { length: segment.length, summarizedThrough: through, legacyOffset: segment.offset,
-      initialized: Boolean(story.coverageVersion), skipThrough: Math.max(0, ...(segment.ranges || []).map(range => range.retiredThrough || 0)) };
+    story.files[chatFile] = { length: segment.length };
   }
-}
-
-export function syncStoryProgress(story, content = '') {
-  if (!story) return;
-  ensureStoryFiles(story);
-  const footer = content.match(/<!--MemoryFiles (\{[^\n]*\}) -->/);
-  let saved; try { saved = footer ? JSON.parse(footer[1]) : null; } catch { saved = null; }
-  const sources = [...content.matchAll(/^来源聊天文件：(\"(?:\\.|[^\"\\])*\")；本地第(\d+)至(\d+)楼[。；]/gm)];
-  const seal = Number(content.match(/本条勿动【前(\d+)楼总结已完成】/)?.[1] || 0);
-  const compiled = Number(content.match(/【前(\d+)楼篇章编撰已完成】/)?.[1] || 0);
-  for (const [chatFile, file] of Object.entries(story.files)) {
-    if (!file.initialized) {
-      const legacy = Object.hasOwn(file, 'legacyOffset') ? (sources.length ? compiled : seal) - file.legacyOffset : 0;
-      file.summarizedThrough = Math.max(file.summarizedThrough, Math.min(file.length, Math.max(0, legacy)));
-      for (const match of sources) if (JSON.parse(match[1]) === chatFile && Number(match[2]) <= file.summarizedThrough + 1) file.summarizedThrough = Math.max(file.summarizedThrough, Math.min(file.length, Number(match[3])));
-      file.initialized = true;
-    }
-    if (Number.isInteger(saved?.[chatFile]) && saved[chatFile] >= 0) file.summarizedThrough = Math.max(file.summarizedThrough, Math.min(file.length, saved[chatFile]));
-  }
-}
-
-export function completeStorySources(story, sources) {
-  ensureStoryFiles(story);
-  for (const source of sources) {
-    const file = story.files[source.chatFile];
-    if (file && source.localStartFloor <= Math.max(file.summarizedThrough, file.skipThrough || 0) + 1) file.summarizedThrough = Math.max(file.summarizedThrough, source.localEndFloor);
-  }
-}
-
-export function storyProgressFooter(story, sources = []) {
-  const snapshot = structuredClone(story); completeStorySources(snapshot, sources);
-  const progress = Object.fromEntries(Object.entries(snapshot.files).map(([name, file]) => [name, file.summarizedThrough]));
-  return '<!--MemoryFiles ' + JSON.stringify(progress).replace(/</g, '\\u003c').replace(/>/g, '\\u003e') + ' -->';
-}
-
-export function storySummarizedPrefix(story, chatFile) {
-  if (!story) return 0;
-  ensureStoryFiles(story);
-  return story.files[chatFile]?.summarizedThrough || 0;
-}
-
-export function storySummaryBatch(story, chatFile, batchSize, retention = 0, fullBatch = false) {
-  if (!story || story.archived) return null;
-  ensureStoryFiles(story);
-  const file = story.files[chatFile]; if (!file) return null;
-  const startFloor = Math.max(file.summarizedThrough, file.skipThrough || 0) + 1;
-  const endFloor = Math.min(file.length - retention, startFloor + batchSize - 1);
-  if (endFloor < startFloor || (fullBatch && endFloor - startFloor + 1 < batchSize)) return null;
-  return { chatFile, startFloor, endFloor };
 }
 
 export function storyForChat(state, owner, chatId) { return state.stories?.[state.storyChats?.[bindingKey(owner, chatId)]] || null; }
@@ -112,8 +55,7 @@ export function restoreStory(state, owner, chatId, snapshot, currentLength = 0) 
   const copy = structuredClone(snapshot); copy.archived = false; ensureStoryFiles(copy);
   copy.id = `${snapshot.id}-restore-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   if (!Object.hasOwn(copy.files, chatId)) {
-    for (const file of Object.values(copy.files)) file.skipThrough = file.length;
-    copy.files[chatId] = { length: currentLength, summarizedThrough: 0, skipThrough: currentLength, initialized: true };
+    copy.files[chatId] = { length: currentLength };
   }
   state.stories ||= {}; state.storyChats ||= {}; state.activeStories ||= {};
   state.stories[copy.id] = copy; state.storyChats[bindingKey(owner, chatId)] = copy.id; state.activeStories[owner] = copy.id;
