@@ -27,7 +27,7 @@ export function mountWorkspace(root) {
     const text = label && [...label.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
     if (text) text.textContent = value;
   }
-  const plainButtons = { amily2_mhb_small_manual_execute: '手动小总结', amily2_mhb_small_expedition_execute: '批量总结', amily2_mhb_archive_current: '归档当前总结并停用', amily2_mhb_restore_archive: '恢复选中归档', amily2_unhide_all_button: '恢复全部楼层' };
+  const plainButtons = { amily2_mhb_small_manual_execute: '手动小总结', amily2_mhb_small_expedition_execute: '批量总结', amily2_mhb_archive_current: '归档当前总结并停用', amily2_mhb_restore_archive: '恢复选中归档', amily2_unhide_all_button: '恢复全部楼层', amily2_hide_summarized_button: '隐藏已总结楼层' };
   for (const [id, label] of Object.entries(plainButtons)) {
     const button = root.querySelector(`#${id}`); if (button) button.textContent = label;
   }
