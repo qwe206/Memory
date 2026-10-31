@@ -1,7 +1,6 @@
 import * as Memory from '../core/rag-processor.js';
 import { getChatId } from '../core/utils/context-utils.js';
 import { themeMemoryDialog } from './shell.js';
-import { pluginAuthStatus } from '../utils/auth.js';
 import { notify } from './notify.js';
 
 const button = (text, action) => {
@@ -91,7 +90,7 @@ export function renderChatBindingPanel() {
     });
     panel.querySelector('.am-binding-clear').addEventListener('click', () => {
       const current = getKnowledgeManagementContext();
-      if (!pluginAuthStatus.authorized || !current.chatId || !current.owner) return;
+      if (!current.chatId || !current.owner) return;
       Memory.clearChatMemoryBindings(current.owner, current.chatId); renderChatBindingPanel(); refreshKnowledgeView();
       notify.success('已解除所选聊天的全部绑定，原向量数据保留。');
     });
@@ -124,7 +123,7 @@ export function renderChatBindingPanel() {
     const row = document.createElement('div'); row.className = 'am-binding-row';
     const name = document.createElement('span'); name.textContent = `${ref.name} · ${ref.hashes === null ? '整个知识库' : `${ref.hashes.length} 个分块`}${ref.enabled === false ? ' · 此聊天已停用' : ''}`;
     row.append(name, button('解除绑定', () => {
-      if (!pluginAuthStatus.authorized) return;
+
       try {
         Memory.saveChatMemoryBindings(current.owner, [current.chatId], [{ ...ref, hashes: null }], true);
         renderChatBindingPanel(); refreshKnowledgeView();
@@ -150,7 +149,7 @@ export async function listBindingChats(context, currentChatId, signal) {
 }
 
 export async function openChatBindingDialog(references) {
-  if (!pluginAuthStatus.authorized || !references.length) return;
+  if (!references.length) return;
   const captured = Memory.getChatMemoryBindingContext(), context = SillyTavern.getContext();
   if (!captured.owner || !captured.chatId) { notify.warning('请先打开一个聊天。'); return; }
   const dialog = document.createElement('dialog'); dialog.className = 'am-chunk-viewer am-chat-binding-dialog';
@@ -168,7 +167,7 @@ export async function openChatBindingDialog(references) {
   let chats = [];
   function valid() {
     const live = Memory.getChatMemoryBindingContext();
-    if (!pluginAuthStatus.authorized || live.owner !== captured.owner || getChatId() !== captured.chatId) {
+    if (live.owner !== captured.owner || getChatId() !== captured.chatId) {
       throw new Error('聊天已切换，请关闭后重新打开绑定设置。');
     }
   }

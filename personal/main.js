@@ -5,7 +5,6 @@ import { extensionName, defaultSettings } from '../utils/settings.js';
 import { initializeMemoryBus } from '../SL/bus/MemoryBus.js';
 import { configManager } from '../utils/config/ConfigManager.js';
 import '../utils/config/ApiProfileManager.js';
-import { pluginAuthStatus, checkAuthorization } from '../utils/auth.js';
 import { createDrawer } from '../ui/drawer.js';
 import { initialize, getMemoryStoryContext } from '../core/rag-processor.js';
 import { checkAndTriggerAutoSummary, getTargetLorebookName } from '../core/historiographer.js';
@@ -20,16 +19,15 @@ import { createBackgroundMemoryQueue } from './background-memory.js';
 import { chatKey } from './recovery.js';
 const afterMessage = createBackgroundMemoryQueue({
  async run() {
-  if (!pluginAuthStatus.authorized) return;
   const initialChat = chatKey(getContext());
   getMemoryStoryContext();
   await checkAndTriggerAutoSummary();
-  if (pluginAuthStatus.authorized && chatKey(getContext()) === initialChat) await executeAutoHide();
+  if (chatKey(getContext()) === initialChat) await executeAutoHide();
  },
  onError(error) { console.error('[Memory 记忆]', error); toastr.warning(`后台总结未完成，待处理进度已保留：${error.message}`); },
 });
 const afterChatChanged = createBackgroundMemoryQueue({
- async run() { if (pluginAuthStatus.authorized) { getMemoryStoryContext(); afterMessage(); await executeAutoHide(); } },
+ async run() { getMemoryStoryContext(); afterMessage(); await executeAutoHide(); },
  onError(error) { console.error('[Memory 楼层管理]', error); },
 });
 async function start() {
@@ -40,10 +38,9 @@ async function start() {
  settings.iconLocation = 'topbar';
  initializeMemoryBus(); configManager.migrate();
  try { migrateMemoryPrompts(settings); } catch(error) { toastr.warning('提示词备份失败，已保留原设置。');console.error(error); }
- checkAuthorization(); initialize();
+ initialize();
  window.memory_rearrangeChat = async (...args) => {
   setExtensionPrompt('MEMORY_STORY_SUMMARY', '', 0, 0);
-  if (!pluginAuthStatus.authorized) return;
   const initialChat = chatKey(getContext()), { story } = getMemoryStoryContext();
   const context = getContext(), characterBook = context.characters?.[context.characterId]?.data?.extensions?.world;
   if (story && !story.archived) {
