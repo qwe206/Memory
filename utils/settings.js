@@ -1,7 +1,6 @@
 import { notify as toastr } from '../personal/notify.js';
 import { extension_settings } from "/scripts/extensions.js";
 import { saveSettingsDebounced } from "/script.js";
-import { pluginAuthStatus } from "./auth.js";
 import { MEMORY_PROMPTS } from '../personal/prompt-style.js';
 
 export const pluginVersion = "1.0.11";
@@ -976,8 +975,6 @@ export function validateSettings() {
 }
 
 export function saveSettings() {
-  if (!pluginAuthStatus.authorized) return false;
-
   const validationErrors = validateSettings();
 
   if (validationErrors) {

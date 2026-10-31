@@ -32,7 +32,7 @@
 .am-workspace #amily2_api_config_panel > :not(.am-route-pane):not(dialog),
 .am-workspace #amily2_hanlinyuan_panel > .amily2-header,
 .am-workspace .hly-navigation-deck { display: none !important; }
-.am-workspace .am-route-pane, .am-workspace #hly-modal-container, .am-workspace #auth_panel { padding: 20px; width: 100%; }
+.am-workspace .am-route-pane, .am-workspace #hly-modal-container { padding: 20px; width: 100%; }
 .am-workspace .am-route-heading { margin-bottom: 24px; }
 .am-workspace .am-route-heading h2 { font-size: 20px !important; margin: 0 0 8px; }
 .am-workspace .am-route-heading p { font-size: 12px; color: var(--am-muted); margin: 0; }
@@ -60,7 +60,6 @@
 .am-workspace [data-page='prompts'] textarea { min-height: 180px; }
 .am-workspace .am-nav-group button:disabled { opacity: .5; }
 #amily2_drawer_icon { min-width: 24px; min-height: 24px; }
-.am-workspace #auth_panel { max-width: 640px; margin: auto; }
 .am-workspace [data-page='about'] .disclaimer-emo { display: none; }
 .am-workspace [data-page='about'] fieldset:has(#amily2_open_additional_features),
 .am-workspace [data-page='about'] fieldset:has(#amily2_open_api_config),

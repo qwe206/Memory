@@ -2,7 +2,6 @@ import { notify as toastr } from '../personal/notify.js';
 import { extension_settings, getContext } from "/scripts/extensions.js";
 import { characters, this_chid, saveSettingsDebounced, eventSource, event_types } from "/script.js";
 import { defaultSettings, extensionName, saveSettings, extensionBasePath } from "../utils/settings.js";
-import { pluginAuthStatus, activatePluginAuthorization, getPasswordForDate } from "../utils/auth.js";
 import { fetchModels, testApiConnection } from "../core/api.js";
 import { safeLorebooks, safeCharLorebooks, safeLorebookEntries } from "../core/tavernhelper-compatibility.js";
 
@@ -15,27 +14,6 @@ import { chatKey } from '../personal/recovery.js';
 import { closeMemoryWorkspace } from '../personal/workspace.js';
 import { executeManualCommand } from '../core/autoHideManager.js';
 import { showHtmlModal } from './page-window.js';
-
-
-function displayDailyAuthCode() {
-    const displayEl = document.getElementById('amily2_daily_code_display');
-    const copyBtn = document.getElementById('amily2_copy_daily_code');
-
-    if (displayEl && copyBtn) {
-        const todayCode = getPasswordForDate(new Date());
-        displayEl.textContent = todayCode;
-
-        if(copyBtn) copyBtn.style.display = 'inline-block';
-
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(todayCode).then(() => {
-                toastr.success('授权码已复制到剪贴板！');
-            }, () => {
-                toastr.error('复制失败，请手动复制。');
-            });
-        };
-    }
-}
 
 
 async function loadSillyTavernPresets() {
@@ -470,7 +448,6 @@ export function bindModalEvents() {
         });
     });
 
-    displayDailyAuthCode();
     function updateModelInputView() {
         const settings = extension_settings[extensionName] || {};
         const forceProxy = settings.forceProxyForCustomApi === true;
@@ -510,7 +487,7 @@ export function bindModalEvents() {
     container
         .off("change.amily2.force_proxy")
         .on("change.amily2.force_proxy", '#amily2_force_proxy', function () {
-            if (!pluginAuthStatus.authorized) return;
+
             updateAndSaveSetting('forceProxyForCustomApi', this.checked);
             updateModelInputView();
 
@@ -519,22 +496,12 @@ export function bindModalEvents() {
     container
         .off("change.amily2.manual_model")
         .on("change.amily2.manual_model", '#amily2_manual_model_input', function() {
-            if (!pluginAuthStatus.authorized) return;
+
             updateAndSaveSetting('model', this.value);
             toastr.success(`模型ID [${this.value}] 已自动保存!`, "Memory");
         });
 
 
-    container
-        .off("click.amily2.auth")
-        .on("click.amily2.auth", "#auth_submit", async function () {
-            const authCode = $("#amily2_auth_code").val().trim();
-            if (authCode) {
-                await activatePluginAuthorization(authCode);
-            } else {
-                toastr.warning("请输入授权码", "Memory");
-            }
-        });
 
     container
         .off("click.amily2.actions")
@@ -542,7 +509,7 @@ export function bindModalEvents() {
             "click.amily2.actions",
             "#amily2_refresh_models, #amily2_test_api_connection, #amily2_test, #amily2_fix_now",
             async function () {
-                if (!pluginAuthStatus.authorized) return;
+
                 const button = $(this);
                 const originalHtml = button.html();
                 button
@@ -579,7 +546,7 @@ export function bindModalEvents() {
     container
         .off("click.amily2.jump")
         .on("click.amily2.jump", "#amily2_jump_to_message_btn", async function() {
-            if (!pluginAuthStatus.authorized || this.disabled) return;
+            if (this.disabled) return;
             const raw = $("#amily2_jump_to_message_id").val();
             const targetId = Number(raw);
             if (String(raw).trim() === '' || !Number.isSafeInteger(targetId) || targetId < 0) {
@@ -593,7 +560,7 @@ export function bindModalEvents() {
                 const targetElement = await ensureFloorRendered(targetId, {
                     getContext,
                     getChatKey: context => {
-                        if (!pluginAuthStatus.authorized) throw new Error('授权状态已变化，本次跳转已停止。');
+
                         return chatKey(context);
                     },
                     getMessages: () => Array.from(document.querySelectorAll('#chat .mes[mesid]')),
@@ -614,8 +581,8 @@ export function bindModalEvents() {
                     closeMenu: () => closeMemoryWorkspace(false),
                     nextFrame: () => new Promise(resolve => requestAnimationFrame(resolve)),
                     validate: () => {
-                        if (!pluginAuthStatus.authorized || chatKey(getContext()) !== expectedChat || getContext().chat[targetId] !== expectedMessage) {
-                            throw new Error('聊天或授权状态已变化，本次跳转已停止。');
+                        if (chatKey(getContext()) !== expectedChat || getContext().chat[targetId] !== expectedMessage) {
+                            throw new Error('聊天已变化，本次跳转已停止。');
                         }
                     },
                 });
@@ -631,7 +598,7 @@ export function bindModalEvents() {
     container
         .off("click.amily2.expand_editor")
         .on("click.amily2.expand_editor", "#amily2_expand_editor", function (event) {
-            if (!pluginAuthStatus.authorized) return;
+
             event.stopPropagation();
             const selectedKey = $("#amily2_prompt_selector").val();
             const currentContent = $("#amily2_unified_editor").val();
@@ -658,25 +625,6 @@ export function bindModalEvents() {
             dialogElement[0].showModal();
         });
 
-    container
-        .off("click.amily2.reset_auth")
-        .on("click.amily2.reset_auth", "#amily2_reset_auth", function() {
-            if (!pluginAuthStatus.authorized) return;
-
-            if (confirm("确定要清除本地授权码吗？\n这将使您的授权失效，需要重新验证。\n\n这通常用于：\n1. 升级为高级用户\n2. 解决授权异常问题")) {
-                localStorage.removeItem("plugin_auth_code");
-                localStorage.removeItem("plugin_activated");
-                localStorage.removeItem("plugin_auto_login");
-                localStorage.removeItem("plugin_user_type");
-                localStorage.removeItem("plugin_valid_until");
-
-                toastr.success("授权已清除，即将重新加载以生效...", "Memory");
-
-                setTimeout(() => {
-                    location.reload();
-                }, 1500);
-            }
-        });
 
     container
         .off("click.amily2.update")
@@ -717,7 +665,7 @@ export function bindModalEvents() {
             "click.amily2.manual_command",
             "#amily2_unhide_all_button, #amily2_hide_summarized_button, #amily2_manual_hide_confirm, #amily2_manual_unhide_confirm",
             async function () {
-                if (!pluginAuthStatus.authorized) return;
+
 
                 const buttonId = this.id;
                 let commandType = '';
@@ -762,7 +710,7 @@ export function bindModalEvents() {
         .off("click.amily2.chamber_nav")
         .on("click.amily2.chamber_nav",
              "#amily2_open_text_optimization, #amily2_open_plot_optimization, #amily2_open_additional_features, #amily2_open_rag_palace, #amily2_open_memorisation_forms, #amily2_open_character_world_book, #amily2_open_world_editor, #amily2_open_glossary, #amily2_open_renderer, #amily2_open_super_memory, #amily2_open_auto_char_card, #amily2_open_api_config, #amily2_back_to_main_settings, #amily2_back_to_main_from_hanlinyuan, #amily2_back_to_main_from_forms, #amily2_back_to_main_from_optimization, #amily2_back_to_main_from_text_optimization, #amily2_back_to_main_from_cwb, #amily2_back_to_main_from_world_editor, #amily2_back_to_main_from_glossary, #amily2_renderer_back_button, #amily2_back_to_main_from_super_memory, #amily2_back_to_main_from_api_config", function () {
-        if (!pluginAuthStatus.authorized) return;
+
 
         const mainPanel = container.find('.plugin-features');
         const additionalPanel = container.find('#amily2_additional_features_panel');
@@ -795,12 +743,6 @@ export function bindModalEvents() {
                 textOptimizationPanel.show();
                 break;
             case 'amily2_open_super_memory':
-                const userType = parseInt(localStorage.getItem("plugin_user_type") || "0");
-                if (userType < 2) {
-                    toastr.warning("此功能为内测功能，仅限我看顺眼的用户使用。", "权限不足");
-                    mainPanel.show();
-                    return;
-                }
                 superMemoryPanel.show();
                 break;
 
@@ -853,7 +795,7 @@ export function bindModalEvents() {
             "change.amily2.checkbox",
             'input[type="checkbox"][id^="amily2_"]:not([id^="amily2_wb_enabled"]):not(#amily2_sybd_enabled)',
             function (event) {
-                if (!pluginAuthStatus.authorized) return;
+
 
                 const elementId = this.id;
                 const mainToggle = $(this);
@@ -921,7 +863,7 @@ export function bindModalEvents() {
             "change.amily2.radio",
             'input[type="radio"][name^="amily2_"]:not([name="amily2_icon_location"]):not([name="amily2_wb_source"])',
             function () {
-                if (!pluginAuthStatus.authorized) return;
+
                 const key = snakeToCamel(this.name.replace("amily2_", ""));
                 const value = $(`input[name="${this.name}"]:checked`).val();
                 updateAndSaveSetting(key, value);
@@ -931,7 +873,7 @@ export function bindModalEvents() {
     container
         .off("change.amily2.api_provider")
         .on("change.amily2.api_provider", "#amily2_api_provider", function () {
-            if (!pluginAuthStatus.authorized) return;
+
 
             const provider = $(this).val();
             console.log(`[Memory-UI] API提供商切换为: ${provider}`);
@@ -985,7 +927,7 @@ export function bindModalEvents() {
     container
         .off("change.amily2.text")
         .on("change.amily2.text", "#amily2_api_url, #amily2_api_key, #amily2_optimization_target_tag", function () {
-            if (!pluginAuthStatus.authorized) return;
+
             const key = snakeToCamel(this.id.replace("amily2_", ""));
             updateAndSaveSetting(key, this.value);
             toastr.success(`配置 [${key}] 已自动保存!`, "Memory");
@@ -994,7 +936,7 @@ export function bindModalEvents() {
     container
         .off("change.amily2.select")
         .on("change.amily2.select", "select#amily2_model, select#amily2_preset_selector", function () {
-            if (!pluginAuthStatus.authorized) return;
+
             const key = snakeToCamel(this.id.replace("amily2_", ""));
             let valueToSave = this.value;
 
@@ -1015,7 +957,7 @@ export function bindModalEvents() {
             "input.amily2.range",
             'input[type="range"][id^="amily2_"]',
             function () {
-                if (!pluginAuthStatus.authorized) return;
+
                 const key = snakeToCamel(this.id.replace("amily2_", ""));
                 const value = this.id.includes("temperature")
                     ? parseFloat(this.value)
@@ -1072,7 +1014,7 @@ export function bindModalEvents() {
         .on("change.amily2.lore_settings",
             'select[id^="amily2_lore_"], input#amily2_lore_depth_input',
             function () {
-                if (!pluginAuthStatus.authorized) return;
+
 
 
 
@@ -1100,7 +1042,7 @@ export function bindModalEvents() {
     container
         .off("click.amily2.lore_save")
         .on("click.amily2.lore_save", '#amily2_save_lore_settings', function () {
-            if (!pluginAuthStatus.authorized) return;
+
 
             const button = $(this);
             const statusElement = $('#amily2_lore_save_status');
