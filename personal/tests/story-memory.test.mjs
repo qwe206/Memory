@@ -107,7 +107,30 @@ test('A archive, B fresh, C automatically inherits B, archive C and restore exac
   assert.equal(names.findActiveSummary(h.books[bBook]).content,requestsBefore,'old raw messages are not summarized again after cross-file recovery');
   assert.deepEqual(h.books[aBook].entries[0].amily3Archive, archivedA);
   assert(h.current().id!==bStoryId,'restore creates a branch and preserves old files');
-  assert.equal(archive.disable,true,'archive original remains intact');
+  assert.deepEqual(Object.keys(h.books[bBook].entries),['0'],'cross-file recovery reuses the archived entry');
+  assert.equal(h.books[bBook].entries[0].disable,false);
+  assert.equal(h.books[bBook].entries[0].uid,archive.uid);
+});
+
+test('archiving in place and refreshing or auto-checking does not recreate a summary entry', async () => {
+  const h = await harness();
+  const book = await h.hist.getTargetLorebookName(); h.add('A-memory',[1,2]);
+  const original = structuredClone(h.books[book].entries[0]);
+  assert.equal(await h.hist.archiveCurrentLedger(),true);
+  const archived = structuredClone(h.books[book]);
+  assert.deepEqual(Object.keys(archived.entries),['0']);
+  assert.equal(archived.entries[0].uid,original.uid);
+  assert.equal(archived.entries[0].content,original.content);
+  assert.equal(archived.entries[0].disable,true);
+  assert.equal(names.findActiveSummary(archived),null);
+  for (let n=0;n<2;n++) {
+    assert.equal((await h.hist.getArchivedLedgers()).length,1);
+    await h.hist.checkAndTriggerAutoSummary();
+    assert.equal(await h.hist.executeManualSummary(1,30,true),false);
+  }
+  assert.equal(await h.hist.archiveCurrentLedger(),false);
+  assert.deepEqual(h.books[book],archived);
+  assert.equal(h.requests.length,0);
 });
 
 test('failed worldbook archive leaves storyline open and next file still inherits it', async () => {
@@ -136,17 +159,72 @@ test('vector snapshot failure does not archive the worldbook or close the storyl
   assert.equal(await h.hist.archiveCurrentLedger(),true);
 });
 
-test('failed recovery rolls back both storyline bindings and worldbook, and archived original can be replayed', async () => {
+test('failed recovery rolls back both storyline bindings and worldbook, then restores the same entry', async () => {
   const h = await harness(); const book = await h.hist.getTargetLorebookName(); h.add('A-memory',[1,2]);
   assert(await h.hist.archiveCurrentLedger());
   const beforeState=structuredClone(h.state), beforeBook=structuredClone(h.books[book]);
   h.failVisibility(); assert.equal(await h.hist.restoreArchivedLedger('0'),false);
   assert.deepEqual(h.state,beforeState); assert.deepEqual(h.books[book],beforeBook);
   assert.equal(await h.hist.restoreArchivedLedger('0'),true);
-  assert.equal(h.books[book].entries[0].disable,true);
-  assert.equal(await h.hist.restoreArchivedLedger('0'),true);
-  assert.equal(h.books[book].entries[0].disable,true);
+  assert.deepEqual(Object.keys(h.books[book].entries),['0']);
+  assert.equal(h.books[book].entries[0].disable,false);
+  assert.equal(h.books[book].entries[0].comment,names.SUMMARY_NAME);
+  assert.equal(h.books[book].entries[0].amily3Archive,undefined);
+  const restored = structuredClone(h.books[book]);
+  assert.equal(await h.hist.restoreArchivedLedger('0'),false);
+  assert.deepEqual(h.books[book],restored,'repeated clicks must not create or overwrite entries');
   assert.deepEqual(h.current().references[0].hashes,['1','2']);
+});
+
+test('repeated archive and restore cycles keep the entry UID and capture the latest memory', async () => {
+  const h = await harness(); const book = await h.hist.getTargetLorebookName();
+  const uid = h.books[book].entries[0].uid;
+  for (let cycle=1;cycle<=3;cycle++) {
+    const content = ledger.appendMicroSummaryBlock('',`剧情第${cycle}版`,1,30,128000).content;
+    h.books[book].entries[0].content = content;
+    h.add(`memory-${cycle}`,[cycle]);
+    assert.equal(await h.hist.archiveCurrentLedger(),true);
+    assert.equal((await h.hist.getArchivedLedgers()).length,1);
+    assert.equal(await h.hist.restoreArchivedLedger('0'),true);
+    assert.deepEqual(Object.keys(h.books[book].entries),['0']);
+    assert.equal(h.books[book].entries[0].uid,uid);
+    assert.equal(h.books[book].entries[0].content,content);
+    assert.equal(h.books[book].entries[0].disable,false);
+    assert.equal((await h.hist.getArchivedLedgers()).length,0);
+    assert(h.current().references.some(ref=>ref.collectionId===`role_memory-${cycle}`&&ref.hashes.includes(String(cycle))));
+  }
+});
+
+test('failed in-place restore save preserves the disabled entry and can retry', async () => {
+  const h = await harness(); const book = await h.hist.getTargetLorebookName(); h.add('A-memory',[1,2]);
+  assert.equal(await h.hist.archiveCurrentLedger(),true);
+  const originalBook = structuredClone(h.books[book]), originalState = structuredClone(h.state);
+  h.failSave();
+  assert.equal(await h.hist.restoreArchivedLedger('0'),false);
+  assert.deepEqual(h.books[book],originalBook);
+  assert.deepEqual(h.state,originalState);
+  assert.equal(await h.hist.restoreArchivedLedger('0'),true);
+  assert.deepEqual(Object.keys(h.books[book].entries),['0']);
+  assert.equal(h.books[book].entries[0].disable,false);
+});
+
+test('restoring an older entry archives the active entry without adding or deleting any entry', async () => {
+  const h = await harness(); const book = await h.hist.getTargetLorebookName(); h.add('A-memory',[1]);
+  assert.equal(await h.hist.archiveCurrentLedger(),true);
+  const archived = structuredClone(h.books[book].entries[0]);
+  h.books[book].entries[7] = {uid:7,comment:names.SUMMARY_NAME,disable:false,content:ledger.appendMicroSummaryBlock('','其他剧情',1,30,128000).content};
+  h.books[book].entries[9] = {uid:9,comment:'其他条目',disable:false,content:'用户资料'};
+  const priorContent = h.books[book].entries[7].content;
+  const other = structuredClone(h.books[book].entries[9]);
+  assert.equal(await h.hist.restoreArchivedLedger('0'),true);
+  assert.deepEqual(Object.keys(h.books[book].entries),['0','7','9']);
+  assert.equal(h.books[book].entries[0].uid,archived.uid);
+  assert.equal(h.books[book].entries[0].content,archived.content);
+  assert.equal(h.books[book].entries[0].disable,false);
+  assert(names.isArchivedSummary(h.books[book].entries[7]));
+  assert.equal(h.books[book].entries[7].disable,true);
+  assert.equal(h.books[book].entries[7].content,priorContent);
+  assert.deepEqual(h.books[book].entries[9],other);
 });
 
 test('switching chat while archive save is pending restores the original worldbook and leaves the storyline open', async () => {

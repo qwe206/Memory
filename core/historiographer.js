@@ -1077,7 +1077,7 @@ export async function restoreArchivedLedger(targetLoreKey) {
   return await withLoreLock('memory-restore:' + worldbook, async () => {
    assertContext();
    const book = structuredClone(await loadWorldInfo(worldbook)); assertContext();
-   let target = book?.entries?.[targetLoreKey];
+   const target = book?.entries?.[targetLoreKey];
    if (!isArchivedSummary(target) || !target.disable) throw new Error('请选择有效的归档总结。');
    const progressMatch = String(target.content).match(PROGRESS_SEAL_REGEX);
    if (!progressMatch) throw new Error('归档缺少总结进度，未恢复。');
@@ -1085,7 +1085,6 @@ export async function restoreArchivedLedger(targetLoreKey) {
    const snapshot = [1,2].includes(target.amily3Archive?.version) ? target.amily3Archive : null;
    const sameChat = !snapshot?.visibility || snapshot.visibility.chat === chatKey(getContext());
    if (!sameChat && !snapshot?.story) throw new Error('旧归档属于另一个聊天，请在原聊天恢复；旧格式不支持跨文件回溯。');
-   const currentFile = getContext().chatId ?? getContext().getCurrentChatId?.();
    const localProgress = snapshot?.visibility && sameChat ? Math.min(progress, getContext().chat.length) : progress;
    if (sameChat) planMemoryVisibility(snapshot?.visibility, localProgress);
    const originalBook = structuredClone(book), before = { ...archiveSnapshot(worldbook), version: 2, story: await captureMemoryStoryState() };
@@ -1097,12 +1096,8 @@ export async function restoreArchivedLedger(targetLoreKey) {
     active.comment = RUNNING_LOG_COMMENT + '_归档_' + new Date().toISOString();
     active.disable = true;
    }
-   if (snapshot?.story) {
-    target = structuredClone(target);
-    const newKey = String(Math.max(0, ...Object.keys(book.entries).map(Number).filter(Number.isFinite)) + 1);
-    target.uid = Number(newKey); delete target.amily3Archive;
-    book.entries[newKey] = target;
-   }
+   // Resume the selected entry in place; the next archive captures its new state.
+   delete target.amily3Archive;
    target.comment = RUNNING_LOG_COMMENT; target.disable = false;
    target.content = stripSummarySources(target.content);
    let saved = false, vectors, storyline;
