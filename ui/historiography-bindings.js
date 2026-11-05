@@ -312,7 +312,7 @@ export function bindHistoriographyEvents() {
             toastr.warning("请先选择一个要回溯的总结！", "设置不明");
             return;
         }
-        if (confirm("恢复选中的归档？\n当前总结会先归档，再恢复相关知识库选择和楼层显示。旧归档按总结进度处理，无法判断范围的相关旧库会停用。向量数据不会删除。")) {
+        if (confirm("重新启用选中的原归档条目？\n如有其他启用的总结，会先将其归档。恢复后继续写入选中的原条目，同时恢复相关知识库选择和楼层显示。旧归档按总结进度处理，无法判断范围的相关旧库会停用。向量数据不会删除。")) {
             await restoreArchivedLedger(selectedKey);
             updateArchiveList(); // 回溯后刷新列表
         }
