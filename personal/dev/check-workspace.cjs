@@ -200,13 +200,10 @@ fs.mkdirSync(output, { recursive: true });
     await p.screenshot({path:path.join(output,`released-fullscreen-${width}.png`)});
     if(width<860){await p.locator('.am-menu-toggle').click();assert(await p.locator('.am-work-content').evaluate(n=>n.inert));await p.screenshot({path:path.join(output,`released-menu-${width}.png`)});await p.keyboard.press('Escape');assert.equal(await p.locator('.am-menu-toggle').getAttribute('aria-expanded'),'false');assert(await p.locator('#am-memory-app').isVisible());}
     else {await p.locator('.am-menu-toggle').click();assert.equal(await p.locator('.am-menu-toggle').getAttribute('aria-expanded'),'false');await p.locator('.am-menu-toggle').click();}
-    // UI gating continues to follow original authorization status.
-    await p.evaluate(async()=>{const prefix='/scripts/extensions/third-party/Memory/';const a=await import(prefix+'utils/auth.js');a.pluginAuthStatus.authorized=false;const state=await import(prefix+'ui/state.js');state.updateUI();});
-    await p.locator('#auth_panel').waitFor();assert(await p.locator('#am-app-sidebar [data-route]').first().isDisabled());
-    await p.evaluate(async()=>{const prefix='/scripts/extensions/third-party/Memory/';const a=await import(prefix+'utils/auth.js');a.pluginAuthStatus.authorized=true;const state=await import(prefix+'ui/state.js');state.updateUI();});
-    await p.waitForFunction(()=>!document.querySelector('#amily2_chat_optimiser').classList.contains('am-auth-locked'));
+    assert.equal(await p.locator('#auth_panel, #amily2_auth_code, #amily2_reset_auth').count(),0);
+    assert.equal(await p.locator('#am-app-sidebar [data-route]:disabled').count(),0);
     await p.locator('.am-app-exit').click();await p.locator('#am-memory-app').waitFor({state:'hidden'});await p.locator('#amily2_drawer_icon').focus();await p.keyboard.press('Enter');await p.locator('#am-memory-app').waitFor();
-    assert.deepEqual(errors,[]);console.log(JSON.stringify({width,retained,routes:routes.length,settingsSaved:true,apiSaved:true,models:2,hostTheme:true,deviceTheme:true,authorization:true,keyboardReopen:true,errors}));
+    assert.deepEqual(errors,[]);console.log(JSON.stringify({width,retained,routes:routes.length,settingsSaved:true,apiSaved:true,models:2,hostTheme:true,deviceTheme:true,noAuthorizationRequired:true,keyboardReopen:true,errors}));
     await p.close();
   }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

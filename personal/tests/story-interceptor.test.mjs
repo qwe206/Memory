@@ -16,10 +16,10 @@ test('Memory registers its own host generation interceptor without replacing the
 });
 
 test('the registered interceptor injects continued-story summary and runs memory retrieval independently',async()=>{
-  let chatId='C',retrievals=0,authorized=true,archived=false;
+  let chatId='C',retrievals=0,archived=false;
   const prompts=[];
   const fixture={stripSummarySources,window:{hanlinyuanRagProcessor:{rearrangeChat:async()=>{retrievals++;}}},
-    setExtensionPrompt:(key,value)=>prompts.push({key,value}),pluginAuthStatus:{get authorized(){return authorized;}},
+    setExtensionPrompt:(key,value)=>prompts.push({key,value}),
     chatKey:context=>context.chatId,getContext:()=>({chatId,characterId:0,characters:[{data:{extensions:{world:'A-book'}}}]}),
     getMemoryStoryContext:()=>({story:{worldbook:'B-book',archived}}),getTargetLorebookName:async()=> 'B-book',
     loadWorldInfo:async()=>({entries:{0:{content:'B 的总结'}}}),findActiveSummary:book=>book?.entries[0]};
@@ -29,6 +29,9 @@ test('the registered interceptor injects continued-story summary and runs memory
   assert.equal(retrievals,1);assert(prompts.some(prompt=>prompt.value.includes('B 的总结')));
   prompts.length=0;archived=true;await fixture.window.memory_rearrangeChat([]);
   assert(!prompts.some(prompt=>prompt.value),'archived summaries must not be injected');
-  prompts.length=0;authorized=false;await fixture.window.memory_rearrangeChat([]);
-  assert.equal(retrievals,2);assert(!prompts.some(prompt=>prompt.value));
+  prompts.length=0;archived=false;
+  fixture.loadWorldInfo=async()=>{chatId='D';return {entries:{0:{content:'B 的总结'}}};};
+  new Function(...keys,main.slice(assignment.start,assignment.end))(...keys.map(key=>fixture[key]));
+  await fixture.window.memory_rearrangeChat([]);
+  assert.equal(retrievals,2);assert(!prompts.some(prompt=>prompt.value),'a chat switch must cancel stale summary injection');
 });

@@ -1,5 +1,4 @@
 import { findActiveSummary } from './names.js';
-import { pluginAuthStatus } from '../utils/auth.js';
 import { extension_settings, getContext } from '/scripts/extensions.js';
 import { loadWorldInfo } from '/scripts/world-info.js';
 import { extensionName } from '../utils/settings.js';
@@ -141,13 +140,12 @@ export function mountWorkspace(root) {
   const fontBlock = document.createElement('div'); fontBlock.className = 'am-sidebar-theme';
   fontBlock.innerHTML = '<label for="am-memory-font-size">字号</label><select id="am-memory-font-size" aria-label="界面字号"><option value="12">小</option><option value="13">标准</option><option value="15">大</option></select>';
   sidebar.querySelector('.am-sidebar-foot').append(fontBlock);
-  // Preserve the complete original settings and authorization screen as an explicit route.
-  const about = pane('about', '扩展信息与授权', 'about');
+  // Keep the original extension information on its own route.
+  const about = pane('about', '扩展信息', 'about');
   const oldAbout = [...modules.about.children].filter(n => n !== about);
   move(about, ...oldAbout);
   const kbRoutes = [['retrieval', '知识库检索'], ['historiography', '知识库导入'], ['knowledge-bases', '知识库管理'], ['rerank', '重排序'], ['advanced', '知识库高级设置']];
   for (const [tab, title] of kbRoutes) pages.set(`kb-${tab}`, { element: root.querySelector(`#hly-${tab}-tab`), title, module: 'kb', tab });
-  const auth = root.querySelector('#auth_panel');
   let current = 'memory', menuOpen = false, priorFocus, readToken = 0;
   const scrolls = new Map();
   const toggle = head.querySelector('.am-menu-toggle');
@@ -164,7 +162,6 @@ export function mountWorkspace(root) {
   }
   function navigate(id, focus = false) {
     if (!pages.has(id)) return;
-    if (!pluginAuthStatus.authorized) { syncAuth(); return; }
     scrolls.set(current, content.scrollTop); current = id;
     const page = pages.get(id);
     for (const [key, node] of Object.entries(modules)) node.hidden = key !== page.module;
@@ -214,7 +211,6 @@ export function mountWorkspace(root) {
       const bookName = await getTargetLorebookName();
       const book = bookName ? await loadWorldInfo(bookName) : null;
       if (token !== readToken || getContext().chatId !== chatId) return;
-      if (!pluginAuthStatus.authorized) { output.replaceChildren(); status.textContent = '请先完成授权。'; return; }
       const row = findActiveSummary(book);
       if (!row) { status.textContent = bookName ? '当前世界书还没有总结。' : '当前对话尚未关联世界书。'; return; }
       const parsed = parseLedgerForRefinement(row.content);
@@ -230,17 +226,6 @@ export function mountWorkspace(root) {
       }
     } catch (error) { if (token === readToken) status.textContent = `读取失败：${error.message}。可点击刷新重试。`; }
   }
-  function syncAuth() {
-    const allowed = Boolean(pluginAuthStatus.authorized);
-    root.classList.toggle('am-auth-locked', !allowed);
-    sidebar.querySelectorAll('[data-route]').forEach(button => { button.disabled = !allowed; });
-    if (!allowed) { ++readToken; saved.querySelector('.am-memory-entries').replaceChildren(); for (const node of Object.values(modules)) node.hidden = true; auth.style.display = 'block'; head.querySelector('h1').textContent = '授权验证'; }
-    else { auth.style.display = 'none'; navigate(current); }
-  }
-  const authObserver = new MutationObserver(() => {
-    if (root.classList.contains('am-auth-locked') === Boolean(pluginAuthStatus.authorized)) syncAuth();
-  });
-  authObserver.observe(auth, { attributes: true, attributeFilter: ['style'] });
   root.addEventListener('change', updateRetention);
   saved.querySelector('.am-refresh-memory').addEventListener('click', refreshMemory);
   saved.querySelector('.am-refresh-memory').insertAdjacentHTML('afterbegin', icon('refresh'));
@@ -255,7 +240,7 @@ export function mountWorkspace(root) {
     trigger?.setAttribute('aria-expanded', String(open));
     if (open && !drawerOpen) {
       priorFocus = document.activeElement;
-      syncAuth(); setMenu(!narrow.matches, false);
+      navigate(current); setMenu(!narrow.matches, false);
     } else if (!open && drawerOpen) setMenu(false, false);
     drawerOpen = open;
   }
@@ -289,6 +274,6 @@ export function mountWorkspace(root) {
   const missing = originalControls.filter(control => !root.contains(control));
   if (missing.length) throw new Error(`界面迁移遗漏 ${missing.length} 个原控件。`);
   workspace = { open() { if (!drawer.classList.contains('openDrawer')) nativeToggle?.click(); }, close, navigate, themeSelect: themeBlock.querySelector('select'), originalControlCount: originalControls.length };
-  syncAuth(); setMenu(!narrow.matches, false);
+  navigate(current); setMenu(!narrow.matches, false);
   return workspace;
 }

@@ -58,8 +58,8 @@ test('actual Memory event handler leaves ST reply completion free and skips hidi
   assert.match(main, /eventSource\.on\(event_types\.MESSAGE_RECEIVED, afterMessage\)/);
   let release, started = 0, hides = 0, chat = 'one', hostCompleted = 0;
   const summary = async () => { started++; await new Promise(resolve => { release = resolve; }); };
-  const afterMessage = new Function('createBackgroundMemoryQueue', 'pluginAuthStatus', 'chatKey', 'getContext', 'checkAndTriggerAutoSummary', 'executeAutoHide', 'getMemoryStoryContext',
-    main.slice(handler.start, handler.end) + ';return afterMessage;')(createBackgroundMemoryQueue, { authorized: true }, context => context.id,
+  const afterMessage = new Function('createBackgroundMemoryQueue', 'chatKey', 'getContext', 'checkAndTriggerAutoSummary', 'executeAutoHide', 'getMemoryStoryContext',
+    main.slice(handler.start, handler.end) + ';return afterMessage;')(createBackgroundMemoryQueue, context => context.id,
     () => ({ id: chat }), summary, async () => { hides++; }, () => ({}));
   await afterMessage(); hostCompleted++;
   while (!started) await new Promise(resolve => setTimeout(resolve, 1));

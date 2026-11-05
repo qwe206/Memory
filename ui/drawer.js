@@ -6,11 +6,6 @@ import { applyPersonalFeaturePolicy } from '../personal/features.js';
 import { extension_settings, renderExtensionTemplateAsync } from "/scripts/extensions.js";
 import { extensionName, extensionBasePath, defaultSettings } from "../utils/settings.js";
 import {
-  checkAuthorization,
-  displayExpiryInfo,
-  pluginAuthStatus,
-} from "../utils/auth.js";
-import {
   updateUI,
   setAvailableModels,
   populateModelDropdown,
@@ -31,21 +26,9 @@ async function loadSettings() {
 
 
   applyPersonalFeaturePolicy(extension_settings[extensionName]);
-  checkAuthorization();
-
-
-  const autoLogin = localStorage.getItem("plugin_auto_login") === "true";
-  console.log(
-    `[Memory-调试] 授权状态: ${pluginAuthStatus.authorized}, 自动登录标志: ${autoLogin}`,
-  );
-  if (autoLogin && pluginAuthStatus.authorized) {
-    console.log("[Memory] 检测到有效授权，将执行自动UI更新。");
-  }
-
-  $("#expiry_info").html(displayExpiryInfo());
   updateUI();
 
-  if (pluginAuthStatus.authorized && extension_settings[extensionName].apiUrl) {
+  if (extension_settings[extensionName].apiUrl) {
     const cachedModels = localStorage.getItem("cached_models_amily2");
     if (cachedModels) {
       const models = JSON.parse(cachedModels);
@@ -84,7 +67,7 @@ async function initializePanel(contentPanel, errorContainer) {
             });
         }
 
-        // 3. 主面板跨模块绑定（导航、授权、API provider 切换等）
+        // 3. 主面板跨模块绑定（导航、API provider 切换等）
         trimPersonalPanel(mainContainer[0]);
         bindModalEvents();
         bindPersonalHistoryActions(mainContainer[0]);

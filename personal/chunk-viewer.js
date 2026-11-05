@@ -2,11 +2,10 @@ import { getKnowledgeBaseChunks, getMemoryBindingReference, getChatMemoryBinding
 import { openChatBindingDialog, getKnowledgeManagementContext, renderChatBindingPanel } from './chat-binding-ui.js';
 import { chunkHash } from './chat-memory-bindings.js';
 import { themeMemoryDialog } from './shell.js';
-import { pluginAuthStatus } from '../utils/auth.js';
 import { auditChunkDuplicates } from './chunk-audit.js';
 
 export async function openChunkViewer(id, scope, name) {
-  if (!pluginAuthStatus.authorized) return;
+
   const captured = getChatMemoryBindingContext(), reference = getMemoryBindingReference(id, scope);
   const managed = getKnowledgeManagementContext();
   const dialog = document.createElement('dialog'); dialog.className = 'am-chunk-viewer';
@@ -15,10 +14,7 @@ export async function openChunkViewer(id, scope, name) {
   dialog.querySelector('.am-chunk-book').textContent = name;
   document.body.append(dialog); themeMemoryDialog(dialog);
   const controller = new AbortController();
-  const root = document.querySelector('#amily2_chat_optimiser');
-  const authorization = new MutationObserver(()=>{if(!pluginAuthStatus.authorized)dialog.close();});
-  if(root)authorization.observe(root,{attributes:true,attributeFilter:['class']});
-  dialog.addEventListener('close',()=>{controller.abort();authorization.disconnect();dialog.remove();});
+  dialog.addEventListener('close',()=>{controller.abort();dialog.remove();});
   dialog.querySelector('.am-chunk-close').addEventListener('click',()=>dialog.close());
   dialog.showModal();
   const status = dialog.querySelector('.am-chunk-status'), search = dialog.querySelector('input');
@@ -115,7 +111,7 @@ export async function openChunkViewer(id, scope, name) {
   previous.addEventListener('click',()=>{page--;render();}); next.addEventListener('click',()=>{page++;render();});
   try {
     const result = await getKnowledgeBaseChunks(id,scope,controller.signal);
-    if (!dialog.isConnected || !pluginAuthStatus.authorized) return;
+    if (!dialog.isConnected) return;
     chunks=result.chunks;
     audit=auditChunkDuplicates(chunks);duplicateOnly.disabled=false;
     const duplicateSummary=`${audit.unique} 份不同内容，${audit.extra} 条完全重复。重复检查不删除原文；编辑另存剧情副本。`;
